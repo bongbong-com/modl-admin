@@ -5,6 +5,16 @@ export interface ApiResponse<T = any> {
   error?: string;
 }
 
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -32,12 +42,21 @@ class ApiClient {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || `HTTP ${response.status}`);
+        throw new ApiError(data.error || `HTTP ${response.status}`, response.status);
       }
 
       return data;
     } catch (error) {
-      console.error('API request failed:', error);
+      if (error instanceof ApiError) {
+        // Don't log expected 401 errors for the session check
+        if (endpoint === '/auth/session' && error.status === 401) {
+          // Do nothing, this is an expected "error" for logged-out users
+        } else {
+          console.error(`API request failed with status ${error.status}:`, error.message);
+        }
+      } else {
+        console.error('API request failed:', error);
+      }
       throw error;
     }
   }

@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api';
+import { apiClient, ApiError } from '@/lib/api';
 
 interface AdminSession {
-  email: string;
-  lastActivityAt: string;
-  loggedInIps: string[];
+  email?: string;
+  lastActivityAt?: string;
+  loggedInIps?: string[];
   isAuthenticated: boolean;
 }
 
@@ -19,11 +19,21 @@ export function useAuth() {
   } = useQuery<AdminSession>({
     queryKey: ['auth', 'session'],
     queryFn: async () => {
-      const response = await apiClient.getSession();
-      return response.data;
+      try {
+        const response = await apiClient.getSession();
+        return response.data;
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          // This is the expected state for a logged-out user.
+          // Return a "success" state with isAuthenticated: false.
+          return { isAuthenticated: false };
+        }
+        // For all other errors, re-throw to let React Query handle them.
+        throw error;
+      }
     },
-    retry: false, // Don't retry auth queries
     staleTime: 10 * 60 * 1000, // 10 minutes
+    retry: false, // We've handled the 401, so no need for retries.
   });
 
   // Request verification code mutation
@@ -64,7 +74,7 @@ export function useAuth() {
   return {
     // Session data
     session,
-    isAuthenticated: !!session?.isAuthenticated,
+    isAuthenticated: session?.isAuthenticated ?? false,
     isLoading,
     error,
     
