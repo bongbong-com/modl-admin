@@ -17,6 +17,7 @@ modl-admin is a web application designed for system administrators to manage the
 - **Wouter** for client-side routing
 - **React Hook Form** with Zod validation
 - **Recharts** for data visualization and analytics
+- **Design Style** will follow modl-panel
 
 ### Backend
 - **Node.js** with TypeScript
@@ -66,8 +67,7 @@ modl-admin/
 ### 1. Authentication & Authorization
 - **Super Admin Login**: Secure authentication for modl system administrators
 - **Session Management**: Persistent sessions with secure cookies
-- **Role-Based Access**: Different permission levels for admin users
-- **2FA Support**: Two-factor authentication for enhanced security
+- **Email Code Authentication**: Similar to how modl-panel handles authentication for users. The database will be manually configured with the user entries, so there will be no registration page. A random code will be sent to the admin's email, and they will log in by typing that code in.
 
 ### 2. Server Management
 - **Server Registry**: View all registered modl servers
@@ -75,12 +75,11 @@ modl-admin/
   - Server name and custom domain
   - Plan type (free/premium)
   - Registration date and last activity
-  - Database connection status
   - Custom domain configuration status
 - **Server Actions**: 
   - Edit server configurations
   - Delete/deactivate servers
-  - Reset server databases
+  - Edit/reset server databases
   - Update billing status
 - **Bulk Operations**: Mass actions on multiple servers
 
@@ -119,42 +118,42 @@ modl-admin/
 
 ## Development Phases
 
-### Phase 1: Foundation (Week 1-2)
+### Phase 1: Foundation
 - [ ] Project setup and initial structure
 - [ ] Authentication system implementation
 - [ ] Basic UI layout with navigation
 - [ ] Database connection to global modl database
 - [ ] Core API routes for server listing
 
-### Phase 2: Server Management (Week 3-4)
+### Phase 2: Server Management
 - [ ] Server registry with search and filtering
 - [ ] Server detail views
 - [ ] Basic server actions (edit, delete)
 - [ ] Server creation workflow
 - [ ] Database schema for admin operations
 
-### Phase 3: Monitoring & Logs (Week 5-6)
+### Phase 3: Monitoring & Logs
 - [ ] Error log aggregation system
 - [ ] Dashboard with key metrics
 - [ ] Real-time monitoring setup
 - [ ] Log filtering and search functionality
 - [ ] Alert system foundation
 
-### Phase 4: Analytics (Week 7-8)
+### Phase 4: Analytics
 - [ ] Analytics dashboard with charts
 - [ ] Usage statistics calculation
 - [ ] Report generation system
 - [ ] Data export functionality
 - [ ] Historical data tracking
 
-### Phase 5: Advanced Features (Week 9-10)
+### Phase 5: Advanced Features
 - [ ] Bulk operations for servers
 - [ ] Advanced filtering and search
 - [ ] System configuration panel
 - [ ] Maintenance mode controls
 - [ ] Performance optimizations
 
-### Phase 6: Security & Polish (Week 11-12)
+### Phase 6: Security & Polish
 - [ ] Security audit and hardening
 - [ ] Rate limiting implementation
 - [ ] Input validation and sanitization
@@ -168,8 +167,6 @@ modl-admin/
 POST   /api/auth/login           # Admin login
 POST   /api/auth/logout          # Admin logout
 GET    /api/auth/session         # Get current session
-POST   /api/auth/2fa/setup       # Setup 2FA
-POST   /api/auth/2fa/verify      # Verify 2FA code
 ```
 
 ### Server Management Endpoints
@@ -207,14 +204,9 @@ POST   /api/analytics/report     # Generate custom report
 interface AdminUser {
   _id: ObjectId;
   email: string;
-  username: string;
-  passwordHash: string;
-  role: 'super_admin' | 'admin' | 'moderator';
-  twoFactorSecret?: string;
-  isTwoFactorEnabled: boolean;
+  loggedInIps: [string];
   lastLogin: Date;
   createdAt: Date;
-  updatedAt: Date;
 }
 ```
 
@@ -247,15 +239,12 @@ interface AdminAction {
 ## Security Considerations
 
 ### Authentication
-- Secure password hashing with bcrypt
-- JWT tokens for API authentication
 - Session management with secure cookies
-- Two-factor authentication support
+- Email code verification. Email will be sent with postfix on server.
 - Rate limiting on login attempts
 
 ### Authorization
-- Role-based access control
-- Endpoint-level permission checks
+- Endpoint-level checks
 - Audit logging for all admin actions
 - IP whitelisting for critical operations
 
@@ -294,7 +283,6 @@ NODE_ENV=development
 PORT=5001
 MONGODB_URI=mongodb://localhost:27017/modl-global
 SESSION_SECRET=your-session-secret
-ADMIN_JWT_SECRET=your-jwt-secret
 CORS_ORIGIN=http://localhost:5173
 ```
 
@@ -325,41 +313,3 @@ CORS_ORIGIN=http://localhost:5173
 - API response time benchmarks
 - Database query optimization
 - Frontend bundle size monitoring
-
-## Deployment Plan
-
-### Production Environment
-- Reverse proxy configuration for admin.modl.gg
-- SSL certificate setup
-- Environment-specific configuration
-- Database backup strategies
-- Monitoring and logging setup
-
-### CI/CD Pipeline
-- Automated testing on pull requests
-- Build and deployment automation
-- Environment promotion workflow
-- Rollback procedures
-
-## Future Enhancements
-
-### Advanced Analytics
-- Machine learning insights
-- Predictive analytics for server growth
-- Anomaly detection in system metrics
-
-### Enhanced Monitoring
-- Real-time alerts via email/Slack
-- Custom dashboards for different roles
-- Integration with external monitoring tools
-
-### Automation
-- Automated server provisioning
-- Self-healing system components
-- Scheduled maintenance tasks
-
----
-
-**Last Updated**: [Current Date]
-**Version**: 1.0
-**Author**: Development Team 
