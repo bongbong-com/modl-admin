@@ -1,9 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { PipelineStage } from 'mongoose';
-import { SystemLogModel, ISystemLog } from '../models/SystemLog';
-import { ModlServerModel } from '../models/ModlServer';
+import { SystemLogModel, ISystemLog, ModlServerModel, ApiResponse } from 'modl-shared-web';
 import { requireAuth } from '../middleware/authMiddleware';
-import { ApiResponse } from '@/types';
 
 const router = Router();
 

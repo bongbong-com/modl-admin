@@ -1,7 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { ModlServerModel } from '../models/ModlServer';
+import { ModlServerModel, IModlServer as ModlServer, ApiResponse } from 'modl-shared-web';
 import { requireAuth } from '../middleware/authMiddleware';
-import { ApiResponse, ModlServer } from '@/types';
 import mongoose from 'mongoose';
 
 const router = Router();

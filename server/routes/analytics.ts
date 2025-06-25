@@ -1,6 +1,5 @@
 import { Router } from 'express';
-import { ModlServerModel } from '../models/ModlServer';
-import { SystemLogModel } from '../models/SystemLog';
+import { ModlServerModel, SystemLogModel } from 'modl-shared-web';
 import { requireAuth } from '../middleware/authMiddleware';
 
 const router = Router();

@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
-import { AdminUserModel } from '../models/AdminUser';
+import { AdminUserModel } from 'modl-shared-web';
 import EmailService from '../services/EmailService';
 import { requireAuth } from '../middleware/authMiddleware';
 
@@ -114,8 +114,11 @@ router.post('/login', loginRateLimit, async (req: Request, res: Response) => {
     await admin.save();
 
     // Create session
+    // @ts-ignore
     req.session.adminId = admin.id;
+    // @ts-ignore
     req.session.email = admin.email;
+    // @ts-ignore
     req.session.isAuthenticated = true;
 
     return res.json({

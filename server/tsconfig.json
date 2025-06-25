@@ -6,7 +6,8 @@
     "baseUrl": "../",
     "paths": {
       "@/*": ["./shared/*"],
-      "@server/*": ["./server/*"]
+      "@server/*": ["./server/*"],
+      "modl-shared-web/*": ["../modl-shared-web/src/*"]
     }
   },
   "include": [

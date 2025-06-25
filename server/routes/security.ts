@@ -288,6 +288,7 @@ router.post('/test', async (req, res) => {
     auditLogs.unshift({
       id: `audit_${Date.now()}`,
       timestamp: new Date().toISOString(),
+      // @ts-ignore
       adminId: req.session.email || 'unknown',
       action: 'security_test',
       resource: 'security_config',

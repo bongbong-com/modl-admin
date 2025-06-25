@@ -5,7 +5,6 @@
     "lib": ["ES2022"],
     "allowJs": true,
     "outDir": "./dist",
-    "rootDir": "./",
     "removeComments": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
@@ -27,7 +26,8 @@
     "paths": {
       "@/*": ["./shared/*"],
       "@server/*": ["./server/*"],
-      "@client/*": ["./client/src/*"]
+      "@client/*": ["./client/src/*"],
+      "modl-shared-web/*": ["../modl-shared-web/src/*"]
     }
   },
   "include": [

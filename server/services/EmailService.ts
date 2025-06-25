@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
 import crypto from 'crypto';
-import { EmailCodeModel } from '../models/EmailCode';
+import { EmailCodeModel } from 'modl-shared-web';
 import 'dotenv/config';
 
 class EmailService {

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/authMiddleware';
-import { SystemConfigModel, ISystemConfig } from '../models/SystemConfig';
+import { SystemConfigModel, ISystemConfig } from 'modl-shared-web';
 
 const router = Router();
 
@@ -146,6 +146,7 @@ router.put('/config', configRateLimit, async (req, res) => {
       { new: true, upsert: true }
     );
     
+    // @ts-ignore
     console.log(`Configuration updated by admin: ${req.session.email}`);
     
     return res.json({
@@ -209,6 +210,7 @@ router.post('/maintenance/toggle', async (req, res) => {
         { new: true, upsert: true }
     );
     
+    // @ts-ignore
     console.log(`Maintenance mode ${enabled ? 'enabled' : 'disabled'} by admin: ${req.session.email}`);
     
     return res.json({
@@ -243,6 +245,7 @@ router.post('/services/:service/restart', async (req, res) => {
     }
     
     // Mock restart process
+    // @ts-ignore
     console.log(`Restarting service: ${service} by admin: ${req.session.email}`);
     
     // Simulate restart delay
@@ -301,6 +304,7 @@ router.put('/rate-limits', configRateLimit, async (req, res) => {
       { new: true, upsert: true }
     );
     
+    // @ts-ignore
     console.log(`Rate limits updated by admin: ${req.session.email}`);
     
     return res.json({
