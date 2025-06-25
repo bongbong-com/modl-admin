@@ -44,15 +44,18 @@ export default function ServersPage() {
     error 
   } = useQuery({
     queryKey: ['servers', { search: searchTerm, plan: selectedPlan, status: selectedStatus }],
-    queryFn: () => apiClient.getServers({
-      search: searchTerm || undefined,
-      plan: selectedPlan !== 'all' ? selectedPlan : undefined,
-      status: selectedStatus !== 'all' ? selectedStatus : undefined,
-    }),
+    queryFn: async () => {
+      const response = await apiClient.getServers({
+        search: searchTerm || undefined,
+        plan: selectedPlan !== 'all' ? selectedPlan : undefined,
+        status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      });
+      return response.data;
+    },
   });
 
-  const servers = serversData?.data?.servers || [];
-  const pagination = serversData?.data?.pagination;
+  const servers = serversData?.servers || [];
+  const pagination = serversData?.pagination;
 
   const getStatusBadge = (server: ModlServer) => {
     if (!server.emailVerified) {
@@ -117,6 +120,16 @@ export default function ServersPage() {
             <Link href="/servers">
               <a className="px-3 py-2 text-sm font-medium border-b-2 border-primary text-primary">
                 Servers
+              </a>
+            </Link>
+            <Link href="/monitoring">
+              <a className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+                Monitoring
+              </a>
+            </Link>
+            <Link href="/security">
+              <a className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+                Security
               </a>
             </Link>
           </div>

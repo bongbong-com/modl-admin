@@ -472,12 +472,14 @@ async function performHealthChecks() {
   
   try {
     // Database connectivity check
-    const dbCheck = await SystemLogModel.findOne().limit(1);
+    const startTime = Date.now();
+    await SystemLogModel.findOne().limit(1).lean();
+    const responseTime = Date.now() - startTime;
     checks.push({
       name: 'Database',
       status: 'healthy',
       message: 'Database connection is working',
-      responseTime: Date.now()
+      responseTime: responseTime
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';

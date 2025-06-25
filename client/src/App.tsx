@@ -8,6 +8,7 @@ import MonitoringPage from '@/pages/MonitoringPage';
 import LoadingPage from '@/pages/LoadingPage';
 import AnalyticsPage from '@/pages/AnalyticsPage';
 import SystemConfigPage from '@/pages/SystemConfigPage';
+import SecurityPage from '@/pages/SecurityPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -36,21 +37,20 @@ function AppRoutes() {
         {isAuthenticated ? <Redirect to="/" /> : <LoginPage />}
       </Route>
       
-      <Route path="/" nest>
-        <ProtectedRoute>
-          <Switch>
-                      <Route path="/" component={DashboardPage} />
+      <ProtectedRoute>
+        <Switch>
+          <Route path="/" component={DashboardPage} exact />
           <Route path="/servers" component={ServersPage} />
           <Route path="/servers/:id" component={ServerDetailPage} />
           <Route path="/monitoring" component={MonitoringPage} />
           <Route path="/analytics" component={AnalyticsPage} />
           <Route path="/system" component={SystemConfigPage} />
-            <Route>
-              <Redirect to="/" />
-            </Route>
-          </Switch>
-        </ProtectedRoute>
-      </Route>
+          <Route path="/security" component={SecurityPage} />
+          <Route>
+            <Redirect to="/" />
+          </Route>
+        </Switch>
+      </ProtectedRoute>
     </Switch>
   );
 }

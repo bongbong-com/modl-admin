@@ -95,6 +95,16 @@ export default function DashboardPage() {
                 Monitoring
               </a>
             </Link>
+            <Link href="/security">
+              <a className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+                Security
+              </a>
+            </Link>
+            <Link href="/system">
+              <a className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+                System
+              </a>
+            </Link>
           </div>
         </div>
       </nav>
@@ -189,7 +199,6 @@ export default function DashboardPage() {
               <CardHeader>
                 <CardTitle className="flex items-center">
                   System Health Checks
-                  {getHealthStatusIcon(health.status)}
                 </CardTitle>
                 <CardDescription>
                   Real-time system component status
@@ -247,11 +256,12 @@ export default function DashboardPage() {
                   </Button>
                 </Link>
                 
-                <Button variant="outline" className="w-full h-20 flex flex-col" disabled>
-                  <Settings className="h-6 w-6 mb-2" />
-                  System Settings
-                  <Badge variant="secondary" className="mt-1">Soon</Badge>
-                </Button>
+                <Link href="/system">
+                  <Button variant="outline" className="w-full h-20 flex flex-col">
+                    <Settings className="h-6 w-6 mb-2" />
+                    System Settings
+                  </Button>
+                </Link>
               </div>
             </CardContent>
           </Card>

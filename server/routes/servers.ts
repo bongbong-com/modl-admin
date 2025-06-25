@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { ModlServerModel } from '../models/ModlServer';
 import { requireAuth } from '../middleware/authMiddleware';
 import { ApiResponse, ModlServer } from '@/types';
+import mongoose from 'mongoose';
 
 const router = Router();
 
@@ -140,7 +141,7 @@ router.get('/:id/stats', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     
-    const server = await ModlServerModel.findById(id);
+    const server = await ModlServerModel.findById(id).lean();
     if (!server) {
       return res.status(404).json({
         success: false,
@@ -148,15 +149,37 @@ router.get('/:id/stats', async (req: Request, res: Response) => {
       });
     }
 
-    // TODO: Connect to the server's database and get real stats
-    // For now, return mock data
+    if (!server.databaseName) {
+      return res.status(400).json({
+        success: false,
+        error: 'Server database not configured'
+      });
+    }
+
+    // Connect to the specific server's database
+    const serverDb = mongoose.connection.useDb(server.databaseName, { useCache: true });
+    
+    // Fetch stats from the server's database
+    const [
+      totalPlayers,
+      totalTickets,
+      totalLogs,
+      dbStats
+    ] = await Promise.allSettled([
+      serverDb.collection('players').countDocuments(),
+      serverDb.collection('tickets').countDocuments(),
+      serverDb.collection('logs').countDocuments(),
+      serverDb.db?.stats()
+    ]);
+
+    const getValue = (result: PromiseSettledResult<any>) => result.status === 'fulfilled' ? result.value : 0;
+
     const stats = {
-      totalUsers: Math.floor(Math.random() * 1000) + 100,
-      totalTickets: Math.floor(Math.random() * 50) + 10,
-      totalLogs: Math.floor(Math.random() * 500) + 100,
-      lastActivity: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
-      diskUsage: Math.floor(Math.random() * 100) + 50, // MB
-      databaseSize: Math.floor(Math.random() * 200) + 100, // MB
+      totalPlayers: getValue(totalPlayers),
+      totalTickets: getValue(totalTickets),
+      totalLogs: getValue(totalLogs),
+      lastActivity: server.lastActivityAt || server.updatedAt,
+      databaseSize: getValue(dbStats)?.storageSize || 0,
     };
 
     return res.json({

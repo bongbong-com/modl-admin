@@ -6,6 +6,13 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatDate(date: string | Date, options?: Intl.DateTimeFormatOptions): string {
+  if (!date) return 'N/A';
+  
+  const dateObj = new Date(date);
+  if (isNaN(dateObj.getTime())) {
+    return 'Invalid Date';
+  }
+
   const defaultOptions: Intl.DateTimeFormatOptions = {
     year: 'numeric',
     month: 'long',
@@ -13,12 +20,18 @@ export function formatDate(date: string | Date, options?: Intl.DateTimeFormatOpt
     hour: '2-digit',
     minute: '2-digit'
   };
-  return new Intl.DateTimeFormat("en-US", { ...defaultOptions, ...options }).format(new Date(date));
+  return new Intl.DateTimeFormat("en-US", { ...defaultOptions, ...options }).format(dateObj);
 }
 
 export function formatDateRelative(date: string | Date): string {
+  if (!date) return 'N/A';
+
+  const target = new Date(date);
+  if (isNaN(target.getTime())) {
+    return 'Invalid Date';
+  }
+
   const now = new Date()
-  const target = new Date(date)
   const diff = now.getTime() - target.getTime()
   
   const seconds = Math.floor(diff / 1000)
@@ -30,7 +43,7 @@ export function formatDateRelative(date: string | Date): string {
     if (days < 7) {
       return `${days} day${days > 1 ? 's' : ''} ago`
     }
-    return formatDate(date, { month: 'short', day: 'numeric' });
+    return formatDate(target, { month: 'short', day: 'numeric' });
   } else if (hours > 0) {
     return `${hours} hour${hours > 1 ? 's' : ''} ago`
   } else if (minutes > 0) {

@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
 import { apiClient } from '@/lib/api';
-import { formatDate, formatDateRelative } from '@/lib/utils';
+import { formatDate, formatDateRelative, formatBytes } from '@/lib/utils';
 import { 
   ArrowLeft,
   Server,
@@ -48,11 +48,10 @@ interface ServerDetails {
 }
 
 interface ServerStats {
-  totalUsers: number;
+  totalPlayers: number;
   totalTickets: number;
   totalLogs: number;
   lastActivity: string;
-  diskUsage: number;
   databaseSize: number;
 }
 
@@ -177,8 +176,6 @@ export default function ServerDetailPage() {
               </div>
             </div>
             <div className="flex items-center space-x-3">
-              {getStatusBadge(server.provisioningStatus)}
-              {getPlanBadge(server.plan)}
               <Button onClick={logout} variant="outline">
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
@@ -202,11 +199,11 @@ export default function ServerDetailPage() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+                  <CardTitle className="text-sm font-medium">Total Players</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{stats?.totalUsers || 0}</div>
-                  <p className="text-xs text-muted-foreground">Registered users</p>
+                  <div className="text-2xl font-bold">{stats?.totalPlayers || 0}</div>
+                  <p className="text-xs text-muted-foreground">Registered players</p>
                 </CardContent>
               </Card>
               
@@ -225,7 +222,7 @@ export default function ServerDetailPage() {
                   <CardTitle className="text-sm font-medium">Database Size</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{stats?.databaseSize || 0} MB</div>
+                  <div className="text-2xl font-bold">{stats?.databaseSize ? formatBytes(stats.databaseSize) : '0 MB'}</div>
                   <p className="text-xs text-muted-foreground">Current usage</p>
                 </CardContent>
               </Card>
@@ -235,7 +232,7 @@ export default function ServerDetailPage() {
                   <CardTitle className="text-sm font-medium">Last Activity</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-sm font-bold">
+                  <div className="text-2xl font-bold">
                     {stats?.lastActivity ? formatDateRelative(stats.lastActivity) : 'Unknown'}
                   </div>
                   <p className="text-xs text-muted-foreground">User activity</p>
@@ -411,9 +408,11 @@ export default function ServerDetailPage() {
                       {server.subscription_status && (
                         <div>
                           <label className="text-sm font-medium text-muted-foreground">Subscription Status</label>
-                          <Badge variant={server.subscription_status === 'active' ? 'default' : 'secondary'}>
-                            {server.subscription_status}
-                          </Badge>
+                          <div>
+                            <Badge variant={server.subscription_status === 'active' ? 'default' : 'secondary'}>
+                              {server.subscription_status}
+                            </Badge>
+                          </div>
                         </div>
                       )}
                       

@@ -57,13 +57,11 @@ const defaultConfig = {
 
 // Helper to get or create the main config
 async function getMainConfig(): Promise<ISystemConfig> {
-  let config = await SystemConfigModel.findOne({ configId: 'main_config' });
-  if (!config) {
-    config = await SystemConfigModel.create({
-      configId: 'main_config',
-      ...defaultConfig
-    });
-  }
+  const config = await SystemConfigModel.findOneAndUpdate(
+    { configId: 'main_config' },
+    { $setOnInsert: { configId: 'main_config', ...defaultConfig } },
+    { new: true, upsert: true, runValidators: true }
+  );
   return config;
 }
 
