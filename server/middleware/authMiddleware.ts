@@ -1,22 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import mongoose, { Schema, model, Document, Model } from 'mongoose';
-
-interface IAdminUser extends Document {
-  email: string;
-  loggedInIps: string[];
-  lastActivityAt: Date;
-  createdAt: Date;
-}
-
-const AdminUserSchema = new Schema<IAdminUser>({
-  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-  loggedInIps: [{ type: String, trim: true }],
-  lastActivityAt: { type: Date, default: Date.now },
-  createdAt: { type: Date, default: Date.now }
-}, {
-  timestamps: false,
-  collection: 'admin_users'
-});
+import { IAdminUser, AdminUserSchema } from 'modl-shared-web';
+import 'dotenv/config';
 
 const getAdminUserModel = (): Model<IAdminUser> => {
   return mongoose.models.AdminUser || model<IAdminUser>('AdminUser', AdminUserSchema);
@@ -26,6 +11,24 @@ const getAdminUserModel = (): Model<IAdminUser> => {
  * Middleware to check if admin is authenticated
  */
 export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
+  if (process.env.NODE_ENV === 'development') {
+    const mockAdmin = {
+      _id: 'dev-admin-id-00000000000000',
+      email: 'dev@modl.gg',
+      loggedInIps: ['127.0.0.1', '::1', req.ip].filter(Boolean),
+      lastActivityAt: new Date(),
+      createdAt: new Date(),
+    };
+    req.adminUser = mockAdmin as any;
+    // @ts-ignore
+    req.session.adminId = mockAdmin._id;
+    // @ts-ignore
+    req.session.email = mockAdmin.email;
+    // @ts-ignore
+    req.session.isAuthenticated = true;
+    return next();
+  }
+
   const AdminUserModel = getAdminUserModel();
 
   try {
@@ -46,7 +49,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       req.session.destroy((err) => {
         if (err) console.error('Session destroy error:', err);
       });
-      
+
       return res.status(401).json({
         success: false,
         error: 'Invalid session'
@@ -114,7 +117,7 @@ export const updateActivity = async (req: Request, res: Response, next: NextFunc
       }
 
       const clientIP = req.ip || req.connection.remoteAddress || 'unknown';
-      
+
       // Perform a single update operation
       await AdminUserModel.updateOne(
         // @ts-ignore
