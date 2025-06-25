@@ -1,9 +1,20 @@
 import { Router, Request, Response } from 'express';
-import { PipelineStage } from 'mongoose';
-import { SystemLogModel, ISystemLog, ModlServerModel, ApiResponse } from 'modl-shared-web';
+import mongoose, { Schema, model, Document, Model, PipelineStage } from 'mongoose';
+import { ISystemLog as ISystemLogShared, IModlServer as IModlServerShared, ApiResponse, ModlServerSchema, SystemLogSchema } from 'modl-shared-web';
 import { requireAuth } from '../middleware/authMiddleware';
 
+type ISystemLog = ISystemLogShared & Document;
+type IModlServer = IModlServerShared & Document;
+
 const router = Router();
+
+const getSystemLogModel = (): Model<ISystemLog> => {
+  return mongoose.models.SystemLog as Model<ISystemLog> || mongoose.model<ISystemLog>('SystemLog', SystemLogSchema);
+}
+
+const getModlServerModel = (): Model<IModlServer> => {
+  return mongoose.models.ModlServer as Model<IModlServer> || mongoose.model<IModlServer>('ModlServer', ModlServerSchema);
+}
 
 // Apply authentication to all routes
 router.use(requireAuth);
@@ -19,6 +30,7 @@ router.get('/dashboard', async (req: Request, res: Response) => {
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
     // Get server counts
+    const ModlServerModel = getModlServerModel();
     const [
       totalServers,
       activeServers,
@@ -39,6 +51,7 @@ router.get('/dashboard', async (req: Request, res: Response) => {
     ]);
 
     // Get log counts by level for the last 24 hours
+    const SystemLogModel = getSystemLogModel();
     const [
       criticalLogs24h,
       errorLogs24h,
@@ -155,6 +168,7 @@ router.get('/logs', async (req: Request, res: Response) => {
       order = 'desc'
     } = req.query;
 
+    const SystemLogModel = getSystemLogModel();
     const pageNum = parseInt(page as string);
     const limitNum = Math.min(parseInt(limit as string), 100); // Max 100 per page
     const skip = (pageNum - 1) * limitNum;
@@ -203,13 +217,13 @@ router.get('/logs', async (req: Request, res: Response) => {
 
     // Execute queries
     const [logs, total] = await Promise.all([
-      SystemLogModel
+      getSystemLogModel()
         .find(filter)
         .sort(sortObj)
         .skip(skip)
         .limit(limitNum)
         .lean(),
-      SystemLogModel.countDocuments(filter)
+      getSystemLogModel().countDocuments(filter)
     ]);
 
     const response: ApiResponse = {
@@ -261,6 +275,7 @@ router.post('/logs', async (req: Request, res: Response) => {
       });
     }
 
+    const SystemLogModel = getSystemLogModel();
     const log = new SystemLogModel({
       ...logData,
       timestamp: new Date()
@@ -288,17 +303,22 @@ router.post('/logs', async (req: Request, res: Response) => {
  */
 router.get('/sources', async (req: Request, res: Response) => {
   try {
+    const SystemLogModel = getSystemLogModel();
     const sources = await SystemLogModel.distinct('source');
+    const categories = await SystemLogModel.distinct('category');
     
     return res.json({
       success: true,
-      data: sources.sort()
+      data: {
+        sources: sources.filter(Boolean),
+        categories: categories.filter(Boolean)
+      }
     });
   } catch (error) {
-    console.error('Get log sources error:', error);
+    console.error('Get sources error:', error);
     return res.status(500).json({
       success: false,
-      error: 'Failed to fetch log sources'
+      error: 'Failed to fetch sources'
     });
   }
 });
@@ -312,6 +332,7 @@ router.put('/logs/:id/resolve', async (req: Request, res: Response) => {
     const { id } = req.params;
     const { resolvedBy } = req.body;
     
+    const SystemLogModel = getSystemLogModel();
     const log = await SystemLogModel.findByIdAndUpdate(
       id,
       {
@@ -339,31 +360,6 @@ router.put('/logs/:id/resolve', async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       error: 'Failed to resolve log entry'
-    });
-  }
-});
-
-/**
- * GET /api/monitoring/sources
- * Get list of available log sources
- */
-router.get('/sources', async (req: Request, res: Response) => {
-  try {
-    const sources = await SystemLogModel.distinct('source');
-    const categories = await SystemLogModel.distinct('category');
-    
-    return res.json({
-      success: true,
-      data: {
-        sources: sources.filter(Boolean),
-        categories: categories.filter(Boolean)
-      }
-    });
-  } catch (error) {
-    console.error('Get sources error:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Failed to fetch sources'
     });
   }
 });
@@ -462,7 +458,7 @@ async function getLogTrends(startDate: Date, endDate: Date) {
     }
   ];
 
-  return await SystemLogModel.aggregate(pipeline);
+  return await getSystemLogModel().aggregate(pipeline);
 }
 
 async function performHealthChecks() {
@@ -471,7 +467,7 @@ async function performHealthChecks() {
   try {
     // Database connectivity check
     const startTime = Date.now();
-    await SystemLogModel.findOne().limit(1).lean();
+    await getSystemLogModel().findOne().limit(1).lean();
     const responseTime = Date.now() - startTime;
     checks.push({
       name: 'Database',
@@ -491,7 +487,7 @@ async function performHealthChecks() {
   
   try {
     // Check for recent critical errors
-    const recentCritical = await SystemLogModel.countDocuments({
+    const recentCritical = await getSystemLogModel().countDocuments({
       level: 'critical',
       timestamp: { $gte: new Date(Date.now() - 60 * 60 * 1000) }, // Last hour
       resolved: false

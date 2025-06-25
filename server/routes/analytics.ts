@@ -1,8 +1,58 @@
 import { Router } from 'express';
-import { ModlServerModel, SystemLogModel } from 'modl-shared-web';
+import mongoose, { Schema, model, Document, Model } from 'mongoose';
+import { IModlServer as IModlServerShared, ISystemLog as ISystemLogShared } from 'modl-shared-web';
 import { requireAuth } from '../middleware/authMiddleware';
 
+type ISystemLog = ISystemLogShared & Document;
+type IModlServer = IModlServerShared & Document;
+
+const SystemLogSchema = new Schema<ISystemLog>({
+  level: { type: String, required: true, enum: ['info', 'warning', 'error', 'critical'], index: true },
+  message: { type: String, required: true, maxlength: 2000 },
+  source: { type: String, required: true, index: true },
+  metadata: { type: Schema.Types.Mixed, default: {} },
+  timestamp: { type: Date, default: Date.now, index: -1 },
+  serverId: { type: String, index: true },
+  category: { type: String, index: true },
+  ipAddress: String,
+  userAgent: String,
+  userId: String,
+  stackTrace: String,
+  resolved: { type: Boolean, default: false, index: true },
+  resolvedBy: String,
+  resolvedAt: Date,
+  tags: [{ type: String, index: true }]
+}, {
+  timestamps: false,
+  collection: 'system_logs'
+});
+
+const ModlServerSchema = new Schema<IModlServer>({
+  serverName: { type: String, required: true, unique: true, trim: true },
+  customDomain: { type: String, required: true, unique: true, trim: true },
+  adminEmail: { type: String, required: true, lowercase: true, trim: true },
+  databaseName: { type: String, sparse: true },
+  emailVerified: { type: Boolean, default: false, index: true },
+  emailVerificationToken: { type: String, unique: true, sparse: true },
+  provisioningStatus: { type: String, enum: ['pending', 'in-progress', 'completed', 'failed'], default: 'pending', index: true },
+  plan: { type: String, enum: ['free', 'premium'], default: 'free', index: true },
+  subscription_status: { type: String, enum: ['active', 'canceled', 'past_due', 'inactive', 'trialing', 'incomplete', 'incomplete_expired', 'unpaid', 'paused'], default: 'inactive', index: true },
+  createdAt: { type: Date, default: Date.now, index: true },
+  updatedAt: { type: Date, default: Date.now }
+}, {
+  timestamps: true,
+  collection: 'servers'
+});
+
 const router = Router();
+
+const getModlServerModel = (): Model<IModlServer> => {
+  return mongoose.models.ModlServer as Model<IModlServer> || mongoose.model<IModlServer>('ModlServer', ModlServerSchema);
+}
+
+const getSystemLogModel = (): Model<ISystemLog> => {
+  return mongoose.models.SystemLog as Model<ISystemLog> || mongoose.model<ISystemLog>('SystemLog', SystemLogSchema);
+}
 
 // Apply authentication to all analytics routes
 router.use(requireAuth);
@@ -18,6 +68,7 @@ router.get('/dashboard', async (req, res) => {
     previousStartDate.setDate(previousStartDate.getDate() - days);
 
     // --- Overview Metrics ---
+    const ModlServerModel = getModlServerModel();
     const totalServers = await ModlServerModel.countDocuments();
     const activeServers = await ModlServerModel.countDocuments({ updatedAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } });
     
@@ -95,6 +146,7 @@ router.get('/dashboard', async (req, res) => {
     const geographicDistribution = geoDist.map(r => ({ region: r._id, servers: r.servers, percentage: Math.round((r.servers/totalRegionServers)*100) }));
 
     // --- System Health ---
+    const SystemLogModel = getSystemLogModel();
     const errorRates = await SystemLogModel.aggregate([
         { $match: { timestamp: { $gte: startDate }, level: { $in: ['critical', 'error', 'warning']} } },
         { $group: { 

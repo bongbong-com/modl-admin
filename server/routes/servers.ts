@@ -1,9 +1,32 @@
 import { Router, Request, Response } from 'express';
-import { ModlServerModel, IModlServer as ModlServer, ApiResponse } from 'modl-shared-web';
+import mongoose, { Schema, model, Document, Model } from 'mongoose';
+import { IModlServer as IModlServerShared, ApiResponse } from 'modl-shared-web';
 import { requireAuth } from '../middleware/authMiddleware';
-import mongoose from 'mongoose';
+
+type IModlServer = IModlServerShared & Document;
+
+const ModlServerSchema = new Schema<IModlServer>({
+  serverName: { type: String, required: true, unique: true, trim: true },
+  customDomain: { type: String, required: true, unique: true, trim: true },
+  adminEmail: { type: String, required: true, lowercase: true, trim: true },
+  databaseName: { type: String, sparse: true },
+  emailVerified: { type: Boolean, default: false, index: true },
+  emailVerificationToken: { type: String, unique: true, sparse: true },
+  provisioningStatus: { type: String, enum: ['pending', 'in-progress', 'completed', 'failed'], default: 'pending', index: true },
+  plan: { type: String, enum: ['free', 'premium'], default: 'free', index: true },
+  subscription_status: { type: String, enum: ['active', 'canceled', 'past_due', 'inactive', 'trialing', 'incomplete', 'incomplete_expired', 'unpaid', 'paused'], default: 'inactive', index: true },
+  createdAt: { type: Date, default: Date.now, index: true },
+  updatedAt: { type: Date, default: Date.now }
+}, {
+  timestamps: true,
+  collection: 'servers'
+});
 
 const router = Router();
+
+const getModlServerModel = (): Model<IModlServer> => {
+  return mongoose.models.ModlServer as Model<IModlServer> || mongoose.model<IModlServer>('ModlServer', ModlServerSchema);
+}
 
 // Apply authentication to all routes
 router.use(requireAuth);
@@ -62,18 +85,19 @@ router.get('/', async (req: Request, res: Response) => {
     sortObj[sort as string] = order === 'desc' ? -1 : 1;
 
     // Execute queries
-    const [servers, total] = await Promise.all([
+    const ModlServerModel = getModlServerModel();
+    const [servers, total]: [IModlServer[], number] = await Promise.all([
       ModlServerModel
         .find(filter)
         .sort(sortObj)
         .skip(skip)
         .limit(limitNum)
-        .lean<ModlServer>(),
+        .lean(),
       ModlServerModel.countDocuments(filter)
     ]);
 
     const response: ApiResponse<{
-      servers: ModlServer[];
+      servers: IModlServer[];
       pagination: {
         page: number;
         limit: number;
@@ -83,7 +107,6 @@ router.get('/', async (req: Request, res: Response) => {
     }> = {
       success: true,
       data: {
-        // @ts-ignore
         servers,
         pagination: {
           page: pageNum,
@@ -112,6 +135,7 @@ router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     
+    const ModlServerModel = getModlServerModel();
     const server = await ModlServerModel.findById(id);
     if (!server) {
       return res.status(404).json({
@@ -141,7 +165,8 @@ router.get('/:id/stats', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     
-    const server = await ModlServerModel.findById(id).lean<ModlServer>();
+    const ModlServerModel = getModlServerModel();
+    const server = await ModlServerModel.findById(id).lean();
     if (!server) {
       return res.status(404).json({
         success: false,
@@ -208,6 +233,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     delete updateData._id;
     delete updateData.createdAt;
     
+    const ModlServerModel = getModlServerModel();
     const server = await ModlServerModel.findByIdAndUpdate(
       id,
       updateData,
@@ -243,6 +269,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     
+    const ModlServerModel = getModlServerModel();
     const server = await ModlServerModel.findByIdAndDelete(id);
     if (!server) {
       return res.status(404).json({
@@ -280,6 +307,7 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
+    const ModlServerModel = getModlServerModel();
     const server = new ModlServerModel(serverData);
     await server.save();
 
@@ -324,6 +352,7 @@ router.post('/bulk', async (req: Request, res: Response) => {
     let result;
     let affectedCount = 0;
 
+    const ModlServerModel = getModlServerModel();
     switch (action) {
       case 'delete':
         result = await ModlServerModel.deleteMany({
