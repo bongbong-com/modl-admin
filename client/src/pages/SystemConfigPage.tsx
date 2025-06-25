@@ -335,63 +335,6 @@ export default function SystemConfigPage() {
                     )}
                   </div>
                 </div>
-
-                <div className="border-t pt-6">
-                  <h3 className="text-lg font-medium mb-4">Service Management</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {[
-                      { name: 'API Gateway', status: 'healthy' },
-                      { name: 'Database', status: 'healthy' },
-                      { name: 'Authentication', status: 'healthy' },
-                      { name: 'File Storage', status: 'degraded' },
-                      { name: 'Email Service', status: 'healthy' },
-                      { name: 'Monitoring', status: 'healthy' }
-                    ].map((service) => (
-                      <Card key={service.name} className="p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <p className="font-medium">{service.name}</p>
-                          <Badge 
-                            variant={service.status === 'healthy' ? 'default' : 'destructive'}
-                            className={service.status === 'healthy' ? 'bg-green-500' : ''}
-                          >
-                            {service.status === 'healthy' ? (
-                              <CheckCircle2 className="h-3 w-3 mr-1" />
-                            ) : service.status === 'degraded' ? (
-                              <AlertCircle className="h-3 w-3 mr-1" />
-                            ) : (
-                              <XCircle className="h-3 w-3 mr-1" />
-                            )}
-                            {service.status}
-                          </Badge>
-                        </div>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="outline" size="sm" className="w-full">
-                              <Power className="h-4 w-4 mr-2" />
-                              Restart
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Restart {service.name}?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This will temporarily interrupt the service. Are you sure you want to continue?
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction 
-                                onClick={() => restartServiceMutation.mutate(service.name)}
-                              >
-                                Restart Service
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
               </CardContent>
             </Card>
           </TabsContent>

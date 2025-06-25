@@ -144,13 +144,12 @@ router.post('/export', async (req, res) => {
       case 'csv':
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        res.send('Date,Servers,Users,Tickets\n2024-01-01,100,1500,820\n2024-01-02,102,1520,835');
-        break;
+        return res.send('Date,Servers,Users,Tickets\n2024-01-01,100,1500,820\n2024-01-02,102,1520,835');
         
       case 'json':
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        res.json({
+        return res.json({
           exportDate: new Date().toISOString(),
           range,
           data: {
@@ -165,15 +164,14 @@ router.post('/export', async (req, res) => {
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         // Mock PDF data
-        res.send(Buffer.from('Mock PDF data'));
-        break;
+        return res.status(501).json({ success: false, error: 'PDF export not implemented' });
         
       default:
-        res.status(400).json({ message: 'Invalid export type' });
+        return res.status(400).json({ message: 'Invalid export type' });
     }
   } catch (error) {
     console.error('Export error:', error);
-    res.status(500).json({ message: 'Failed to export data' });
+    return res.status(500).json({ message: 'Failed to export data' });
   }
 });
 
@@ -190,46 +188,49 @@ router.post('/report', async (req, res) => {
     // 2. Store it temporarily
     // 3. Send notification when ready
     
-    res.json({
-      reportId,
-      status: 'generating',
-      estimatedCompletion: new Date(Date.now() + 60000).toISOString(),
-      downloadUrl: `/api/analytics/reports/${reportId}/download`
-    });
+    return res.status(501).json({ success: false, error: 'Report generation not implemented' });
   } catch (error) {
     console.error('Report generation error:', error);
-    res.status(500).json({ message: 'Failed to generate report' });
+    return res.status(500).json({ message: 'Failed to generate report' });
   }
 });
 
 // Usage statistics
 router.get('/usage', async (req, res) => {
   try {
-    const { range = '30d' } = req.query;
+    const ModlServerModel = mongoose.model<IModlServer>('ModlServer', ModlServerSchema);
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    if (!mongoose.connection.db) {
+      throw new Error('Database connection is not available.');
+    }
+
+    const [activeServers, dbStats] = await Promise.all([
+        ModlServerModel.countDocuments({ lastActivityAt: { $gte: thirtyDaysAgo } }),
+        mongoose.connection.db.stats()
+    ]);
     
-    // Mock usage statistics
-    res.json({
-      userEngagement: {
-        dailyActiveUsers: Math.floor(Math.random() * 1000) + 500,
-        weeklyActiveUsers: Math.floor(Math.random() * 5000) + 2000,
-        monthlyActiveUsers: Math.floor(Math.random() * 15000) + 8000
-      },
-      featureUsage: [
-        { feature: 'Player Lookup', usage: 85, trend: 'up' },
-        { feature: 'Ticket System', usage: 92, trend: 'stable' },
-        { feature: 'Punishment System', usage: 78, trend: 'up' },
-        { feature: 'API Access', usage: 45, trend: 'down' }
-      ],
-      resourceUtilization: {
-        storage: 67,
-        bandwidth: 43,
-        apiCalls: 82,
-        databaseQueries: 71
+    const totalServers = await ModlServerModel.countDocuments();
+
+    return res.json({
+      success: true,
+      data: {
+        userEngagement: {
+          monthlyActiveServers: activeServers,
+        },
+        resourceUtilization: {
+          storage: dbStats.storageSize,
+          storagePercent: totalServers > 0 ? (dbStats.storageSize / (totalServers * 1024 * 1024 * 100)) * 100 : 0, // Assume 100MB per server for percentage
+          apiCalls: 0, // Placeholder
+          databaseQueries: dbStats.opcounters.query,
+        }
       }
     });
   } catch (error) {
     console.error('Usage statistics error:', error);
-    res.status(500).json({ message: 'Failed to fetch usage statistics' });
+    return res.status(500).json({ success: false, error: 'Failed to fetch usage statistics' });
   }
 });
 
@@ -239,41 +240,55 @@ router.get('/historical', async (req, res) => {
     const { metric, range = '30d' } = req.query;
     
     const days = range === '7d' ? 7 : range === '30d' ? 30 : range === '90d' ? 90 : 365;
-    const historical = [];
-    
-    for (let i = days; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      
-      let value;
-      switch (metric) {
-        case 'servers':
-          value = Math.floor(Math.random() * 10) + 90;
-          break;
-        case 'users':
-          value = Math.floor(Math.random() * 100) + 1400;
-          break;
-        case 'tickets':
-          value = Math.floor(Math.random() * 50) + 800;
-          break;
-        default:
-          value = Math.floor(Math.random() * 100);
-      }
-      
-      historical.push({
-        date: date.toISOString().split('T')[0],
-        value
-      });
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    let aggregationPipeline: any[];
+
+    const ModlServerModel = mongoose.model<IModlServer>('ModlServer', ModlServerSchema);
+
+    switch (metric) {
+      case 'servers':
+        aggregationPipeline = [
+          { $match: { createdAt: { $gte: startDate } } },
+          { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, value: { $sum: 1 } } },
+          { $sort: { _id: 1 } },
+          { $project: { date: '$_id', value: 1, _id: 0 } }
+        ];
+        break;
+      case 'users':
+        aggregationPipeline = [
+          { $match: { createdAt: { $gte: startDate } } },
+          { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, value: { $sum: '$userCount' } } },
+          { $sort: { _id: 1 } },
+          { $project: { date: '$_id', value: 1, _id: 0 } }
+        ];
+        break;
+      case 'tickets':
+         aggregationPipeline = [
+          { $match: { createdAt: { $gte: startDate } } },
+          { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, value: { $sum: '$ticketCount' } } },
+          { $sort: { _id: 1 } },
+          { $project: { date: '$_id', value: 1, _id: 0 } }
+        ];
+        break;
+      default:
+        return res.status(400).json({ success: false, error: 'Invalid metric type' });
     }
     
-    res.json({
-      metric,
-      range,
-      data: historical
+    const historicalData = await ModlServerModel.aggregate(aggregationPipeline);
+    
+    return res.json({
+      success: true,
+      data: {
+        metric,
+        range,
+        data: historicalData
+      }
     });
   } catch (error) {
     console.error('Historical data error:', error);
-    res.status(500).json({ message: 'Failed to fetch historical data' });
+    return res.status(500).json({ success: false, error: 'Failed to fetch historical data' });
   }
 });
 

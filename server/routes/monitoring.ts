@@ -370,14 +370,8 @@ router.put('/logs/:id/resolve', async (req: Request, res: Response) => {
  */
 router.get('/health', async (req: Request, res: Response) => {
   try {
-    const checks = await performHealthChecks();
+    const { checks, overallStatus } = await performHealthChecks();
     
-    const overallStatus = checks.every(check => check.status === 'healthy') 
-      ? 'healthy' 
-      : checks.some(check => check.status === 'critical')
-      ? 'critical'
-      : 'degraded';
-
     return res.json({
       success: true,
       data: {
@@ -394,6 +388,15 @@ router.get('/health', async (req: Request, res: Response) => {
     });
   }
 });
+
+interface HealthCheckItem {
+  name: string;
+  status: 'healthy' | 'degraded' | 'critical' | 'unknown';
+  message: string;
+  responseTime?: number;
+  count?: number;
+  error?: string;
+}
 
 // Helper functions
 
@@ -462,54 +465,95 @@ async function getLogTrends(startDate: Date, endDate: Date) {
 }
 
 async function performHealthChecks() {
-  const checks = [];
+  const checks: HealthCheckItem[] = [];
+  let overallStatus: 'healthy' | 'degraded' | 'critical' = 'healthy';
+
+  const checkAndPush = (result: HealthCheckItem) => {
+    checks.push(result);
+    if (result.status === 'critical') {
+      overallStatus = 'critical';
+    } else if (result.status === 'degraded' && overallStatus !== 'critical') {
+      overallStatus = 'degraded';
+    }
+  };
   
+  // Database connectivity check
   try {
-    // Database connectivity check
+    if (!mongoose.connection.db) {
+      throw new Error('Database connection not available');
+    }
     const startTime = Date.now();
-    await mongoose.model('SystemLog').findOne().limit(1).lean();
+    await mongoose.connection.db.admin().ping();
     const responseTime = Date.now() - startTime;
-    checks.push({
-      name: 'Database',
+    checkAndPush({
+      name: 'Database Connectivity',
       status: 'healthy',
-      message: 'Database connection is working',
-      responseTime: responseTime
+      message: 'MongoDB connection is responsive.',
+      responseTime
     });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    checks.push({
-      name: 'Database',
+  } catch (error: any) {
+    checkAndPush({
+      name: 'Database Connectivity',
       status: 'critical',
-      message: 'Database connection failed',
-      error: errorMessage
+      message: 'Failed to ping MongoDB.',
+      error: error.message
+    });
+  }
+
+  // Check for unresolved critical errors
+  try {
+    const SystemLogModel = getSystemLogModel();
+    const criticalLogsCount = await SystemLogModel.countDocuments({
+      level: 'critical',
+      resolved: false,
+      timestamp: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } // Last 24h
+    });
+
+    let status: 'healthy' | 'degraded' | 'critical' = 'healthy';
+    if (criticalLogsCount > 5) status = 'critical';
+    else if (criticalLogsCount > 0) status = 'degraded';
+
+    checkAndPush({
+      name: 'Critical System Logs',
+      status: status,
+      message: `${criticalLogsCount} unresolved critical log(s) in the last 24 hours.`,
+      count: criticalLogsCount,
+    });
+  } catch (error: any) {
+    checkAndPush({
+      name: 'Critical System Logs',
+      status: 'unknown',
+      message: 'Could not check system logs.',
+      error: error.message
     });
   }
   
+  // Check for servers that failed to provision
   try {
-    // Check for recent critical errors
-    const recentCritical = await mongoose.model('SystemLog').countDocuments({
-      level: 'critical',
-      timestamp: { $gte: new Date(Date.now() - 60 * 60 * 1000) }, // Last hour
-      resolved: false
+    const ModlServerModel = getModlServerModel();
+    const failedServerCount = await ModlServerModel.countDocuments({
+      provisioningStatus: 'failed'
     });
     
-    checks.push({
-      name: 'Error Rate',
-      status: recentCritical === 0 ? 'healthy' : recentCritical < 5 ? 'degraded' : 'critical',
-      message: `${recentCritical} unresolved critical errors in the last hour`,
-      count: recentCritical
+    let status: 'healthy' | 'degraded' = 'healthy';
+    if (failedServerCount > 0) status = 'degraded';
+    
+    checkAndPush({
+        name: 'Server Provisioning',
+        status: status,
+        message: `${failedServerCount} server(s) failed to provision.`,
+        count: failedServerCount,
     });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    checks.push({
-      name: 'Error Rate',
-      status: 'unknown',
-      message: 'Unable to check error rate',
-      error: errorMessage
+  } catch (error: any) {
+     checkAndPush({
+        name: 'Server Provisioning',
+        status: 'unknown',
+        message: 'Could not check server provisioning status.',
+        error: error.message
     });
   }
   
-  return checks;
+  return { checks, overallStatus };
 }
 
 export default router; 

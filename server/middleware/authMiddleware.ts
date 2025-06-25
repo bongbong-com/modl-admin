@@ -27,23 +27,6 @@ const getAdminUserModel = (): Model<IAdminUser> => {
  */
 export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
   const AdminUserModel = getAdminUserModel();
-  if (process.env.NODE_ENV === 'development') {
-    const mockAdmin = {
-      _id: 'dev-admin-id-00000000000000',
-      email: 'dev@modl.gg',
-      loggedInIps: ['127.0.0.1', '::1', req.ip].filter(Boolean),
-      lastActivityAt: new Date(),
-      createdAt: new Date(),
-    };
-    req.adminUser = mockAdmin as any;
-    // @ts-ignore
-    req.session.adminId = mockAdmin._id;
-    // @ts-ignore
-    req.session.email = mockAdmin.email;
-    // @ts-ignore
-    req.session.isAuthenticated = true;
-    return next();
-  }
 
   try {
     // Check if session exists and has admin ID

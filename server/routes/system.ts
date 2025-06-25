@@ -240,40 +240,6 @@ router.post('/maintenance/toggle', async (req, res) => {
   }
 });
 
-// Restart service (mock implementation)
-router.post('/services/:service/restart', async (req, res) => {
-  try {
-    const { service } = req.params;
-    
-    // Validate service name
-    const validServices = ['API Gateway', 'Database', 'Authentication', 'File Storage', 'Email Service', 'Monitoring'];
-    if (!validServices.includes(service)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid service name'
-      });
-    }
-    
-    // Mock restart process
-    // @ts-ignore
-    console.log(`Restarting service: ${service} by admin: ${req.session.email}`);
-    
-    // Simulate restart delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    return res.json({
-      success: true,
-      message: `Service ${service} restarted successfully`
-    });
-  } catch (error) {
-    console.error('Service restart error:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Failed to restart service'
-    });
-  }
-});
-
 // Get rate limit status
 router.get('/rate-limits', async (req, res) => {
   try {
