@@ -68,7 +68,7 @@ router.get('/', async (req: Request, res: Response) => {
         .sort(sortObj)
         .skip(skip)
         .limit(limitNum)
-        .lean(),
+        .lean<ModlServer>(),
       ModlServerModel.countDocuments(filter)
     ]);
 
@@ -83,6 +83,7 @@ router.get('/', async (req: Request, res: Response) => {
     }> = {
       success: true,
       data: {
+        // @ts-ignore
         servers,
         pagination: {
           page: pageNum,
@@ -140,7 +141,7 @@ router.get('/:id/stats', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     
-    const server = await ModlServerModel.findById(id).lean();
+    const server = await ModlServerModel.findById(id).lean<ModlServer>();
     if (!server) {
       return res.status(404).json({
         success: false,
