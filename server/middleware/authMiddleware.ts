@@ -1,10 +1,32 @@
 import { Request, Response, NextFunction } from 'express';
-import { AdminUserModel } from 'modl-shared-web';
+import mongoose, { Schema, model, Document, Model } from 'mongoose';
+
+interface IAdminUser extends Document {
+  email: string;
+  loggedInIps: string[];
+  lastActivityAt: Date;
+  createdAt: Date;
+}
+
+const AdminUserSchema = new Schema<IAdminUser>({
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+  loggedInIps: [{ type: String, trim: true }],
+  lastActivityAt: { type: Date, default: Date.now },
+  createdAt: { type: Date, default: Date.now }
+}, {
+  timestamps: false,
+  collection: 'admin_users'
+});
+
+const getAdminUserModel = (): Model<IAdminUser> => {
+  return mongoose.models.AdminUser || model<IAdminUser>('AdminUser', AdminUserSchema);
+};
 
 /**
  * Middleware to check if admin is authenticated
  */
 export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
+  const AdminUserModel = getAdminUserModel();
   if (process.env.NODE_ENV === 'development') {
     const mockAdmin = {
       _id: 'dev-admin-id-00000000000000',
@@ -74,6 +96,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
  * Middleware for optional authentication (doesn't fail if not authenticated)
  */
 export const optionalAuth = async (req: Request, res: Response, next: NextFunction) => {
+  const AdminUserModel = getAdminUserModel();
   try {
     // @ts-ignore
     if (req.session.adminId && req.session.isAuthenticated) {
@@ -98,6 +121,7 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
  * Update admin's last activity and IP if needed
  */
 export const updateActivity = async (req: Request, res: Response, next: NextFunction) => {
+  const AdminUserModel = getAdminUserModel();
   try {
     // @ts-ignore
     if (req.session.adminId) {

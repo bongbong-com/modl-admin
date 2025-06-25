@@ -1,8 +1,31 @@
 import { Router, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
-import { AdminUserModel } from 'modl-shared-web';
+import mongoose, { Schema, model, Document, Model } from 'mongoose';
 import EmailService from '../services/EmailService';
 import { requireAuth } from '../middleware/authMiddleware';
+
+// Define IAdminUser directly in this file
+interface IAdminUser extends Document {
+  email: string;
+  loggedInIps: string[];
+  lastActivityAt: Date;
+  createdAt: Date;
+}
+
+// Define AdminUserSchema directly in this file
+const AdminUserSchema = new Schema<IAdminUser>({
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+  loggedInIps: [{ type: String, trim: true }],
+  lastActivityAt: { type: Date, default: Date.now },
+  createdAt: { type: Date, default: Date.now }
+}, {
+  timestamps: false,
+  collection: 'admin_users'
+});
+
+const getAdminUserModel = (): Model<IAdminUser> => {
+  return mongoose.models.AdminUser || model<IAdminUser>('AdminUser', AdminUserSchema);
+};
 
 const router = Router();
 
@@ -46,6 +69,7 @@ router.post('/request-code', codeRequestRateLimit, async (req: Request, res: Res
     }
 
     // Check if admin exists
+    const AdminUserModel = getAdminUserModel();
     const admin = await AdminUserModel.findOne({ email: email.toLowerCase() });
     if (!admin) {
       return res.status(401).json({
@@ -86,6 +110,7 @@ router.post('/login', loginRateLimit, async (req: Request, res: Response) => {
     }
 
     // Check if admin exists
+    const AdminUserModel = getAdminUserModel();
     const admin = await AdminUserModel.findOne({ email: email.toLowerCase() });
     if (!admin) {
       return res.status(401).json({
