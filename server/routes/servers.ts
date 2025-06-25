@@ -1,26 +1,9 @@
 import { Router, Request, Response } from 'express';
 import mongoose, { Schema, model, Document, Model } from 'mongoose';
-import { IModlServer as IModlServerShared, ApiResponse } from 'modl-shared-web';
+import { IModlServer as IModlServerShared, ApiResponse, ModlServerSchema } from 'modl-shared-web';
 import { requireAuth } from '../middleware/authMiddleware';
 
 type IModlServer = IModlServerShared & Document;
-
-const ModlServerSchema = new Schema<IModlServer>({
-  serverName: { type: String, required: true, unique: true, trim: true },
-  customDomain: { type: String, required: true, unique: true, trim: true },
-  adminEmail: { type: String, required: true, lowercase: true, trim: true },
-  databaseName: { type: String, sparse: true },
-  emailVerified: { type: Boolean, default: false, index: true },
-  emailVerificationToken: { type: String, unique: true, sparse: true },
-  provisioningStatus: { type: String, enum: ['pending', 'in-progress', 'completed', 'failed'], default: 'pending', index: true },
-  plan: { type: String, enum: ['free', 'premium'], default: 'free', index: true },
-  subscription_status: { type: String, enum: ['active', 'canceled', 'past_due', 'inactive', 'trialing', 'incomplete', 'incomplete_expired', 'unpaid', 'paused'], default: 'inactive', index: true },
-  createdAt: { type: Date, default: Date.now, index: true },
-  updatedAt: { type: Date, default: Date.now }
-}, {
-  timestamps: true,
-  collection: 'servers'
-});
 
 const router = Router();
 
@@ -86,7 +69,7 @@ router.get('/', async (req: Request, res: Response) => {
 
     // Execute queries
     const ModlServerModel = getModlServerModel();
-    const [servers, total]: [IModlServer[], number] = await Promise.all([
+    const [servers, total] = await Promise.all([
       ModlServerModel
         .find(filter)
         .sort(sortObj)
@@ -107,7 +90,7 @@ router.get('/', async (req: Request, res: Response) => {
     }> = {
       success: true,
       data: {
-        servers,
+        servers: servers as IModlServer[],
         pagination: {
           page: pageNum,
           limit: limitNum,

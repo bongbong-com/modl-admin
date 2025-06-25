@@ -1,7 +1,14 @@
 import nodemailer from 'nodemailer';
 import crypto from 'crypto';
-import { EmailCodeModel } from 'modl-shared-web';
+import mongoose, { Schema, model, Document, Model } from 'mongoose';
+import { IEmailCode as IEmailCodeShared, EmailCodeSchema } from 'modl-shared-web';
 import 'dotenv/config';
+
+type IEmailCode = IEmailCodeShared & Document;
+
+const getEmailCodeModel = (): Model<IEmailCode> => {
+  return mongoose.models.EmailCode as Model<IEmailCode> || mongoose.model<IEmailCode>('EmailCode', EmailCodeSchema);
+}
 
 class EmailService {
   private transporter: nodemailer.Transporter;
@@ -30,6 +37,7 @@ class EmailService {
    */
   async sendVerificationCode(email: string): Promise<string> {
     try {
+      const EmailCodeModel = getEmailCodeModel();
       // Generate new code
       const code = this.generateCode();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
@@ -79,6 +87,7 @@ class EmailService {
    */
   async verifyCode(email: string, code: string): Promise<boolean> {
     try {
+      const EmailCodeModel = getEmailCodeModel();
       const emailCode = await EmailCodeModel.findOne({
         email,
         code,

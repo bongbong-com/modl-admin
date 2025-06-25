@@ -1,10 +1,17 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
+import mongoose, { Schema, model, Document, Model } from 'mongoose';
+import { ISystemConfig as ISystemConfigShared, SystemConfigSchema } from 'modl-shared-web';
 import { requireAuth } from '../middleware/authMiddleware';
-import { SystemConfigModel, ISystemConfig } from 'modl-shared-web';
+
+type ISystemConfig = ISystemConfigShared & Document;
 
 const router = Router();
+
+const getSystemConfigModel = (): Model<ISystemConfig> => {
+    return mongoose.models.SystemConfig || mongoose.model<ISystemConfig>('SystemConfig', SystemConfigSchema);
+};
 
 // Apply authentication to all system routes
 router.use(requireAuth);
@@ -57,6 +64,7 @@ const defaultConfig = {
 
 // Helper to get or create the main config
 async function getMainConfig(): Promise<ISystemConfig> {
+  const SystemConfigModel = getSystemConfigModel();
   const config = await SystemConfigModel.findOneAndUpdate(
     { configId: 'main_config' },
     { $setOnInsert: { configId: 'main_config', ...defaultConfig } },
@@ -140,6 +148,7 @@ router.put('/config', configRateLimit, async (req, res) => {
   try {
     const validatedConfig = configSchema.parse(req.body);
     
+    const SystemConfigModel = getSystemConfigModel();
     const updatedConfig = await SystemConfigModel.findOneAndUpdate(
       { configId: 'main_config' },
       { $set: validatedConfig },
@@ -204,6 +213,7 @@ router.post('/maintenance/toggle', async (req, res) => {
       update['general.maintenanceMessage'] = message;
     }
 
+    const SystemConfigModel = getSystemConfigModel();
     const updatedConfig = await SystemConfigModel.findOneAndUpdate(
         { configId: 'main_config' },
         { $set: update },
@@ -298,6 +308,7 @@ router.put('/rate-limits', configRateLimit, async (req, res) => {
       update['performance.rateLimitWindow'] = rateLimitWindow;
     }
 
+    const SystemConfigModel = getSystemConfigModel();
     const config = await SystemConfigModel.findOneAndUpdate(
       { configId: 'main_config' },
       { $set: update },

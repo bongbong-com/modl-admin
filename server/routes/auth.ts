@@ -24,7 +24,7 @@ const AdminUserSchema = new Schema<IAdminUser>({
 });
 
 const getAdminUserModel = (): Model<IAdminUser> => {
-  return mongoose.models.AdminUser || model<IAdminUser>('AdminUser', AdminUserSchema);
+  return mongoose.models.AdminUser as Model<IAdminUser> || mongoose.model<IAdminUser>('AdminUser', AdminUserSchema);
 };
 
 const router = Router();
