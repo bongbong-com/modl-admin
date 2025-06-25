@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import crypto from 'crypto';
 import { EmailCodeModel } from '../models/EmailCode';
+import 'dotenv/config';
 
 class EmailService {
   private transporter: nodemailer.Transporter;
@@ -8,7 +9,7 @@ class EmailService {
   constructor() {
     this.transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'localhost',
-      port: parseInt(process.env.SMTP_PORT || '587'),
+      port: parseInt(process.env.SMTP_PORT || '25'),
       secure: false, // Use TLS
       auth: undefined, // No auth for local postfix
       tls: {

@@ -106,7 +106,7 @@ const ModlServerSchema = new Schema<ModlServerDocument>({
   }
 }, {
   timestamps: true,
-  collection: 'modl_servers'
+  collection: 'servers'
 });
 
 // Indexes for better performance
