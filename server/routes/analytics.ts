@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import mongoose, { Schema, model, Document, Model } from 'mongoose';
-import { IModlServer as IModlServerShared, ISystemLog as ISystemLogShared } from 'modl-shared-web';
+import { IModlServer as IModlServerShared, ISystemLog as ISystemLogShared, ModlServerSchema, SystemLogSchema } from 'modl-shared-web';
 import { requireAuth } from '../middleware/authMiddleware';
 
 type ISystemLog = ISystemLogShared & Document;
@@ -22,7 +22,7 @@ router.get('/dashboard', async (req, res) => {
     previousStartDate.setDate(previousStartDate.getDate() - days);
 
     // --- Overview Metrics ---
-    const ModlServerModel = mongoose.model<IModlServer>('ModlServer');
+    const ModlServerModel = mongoose.model<IModlServer>('ModlServer', ModlServerSchema);
     const totalServers = await ModlServerModel.countDocuments();
     const activeServers = await ModlServerModel.countDocuments({ updatedAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } });
     
@@ -100,7 +100,7 @@ router.get('/dashboard', async (req, res) => {
     const geographicDistribution = geoDist.map(r => ({ region: r._id, servers: r.servers, percentage: Math.round((r.servers/totalRegionServers)*100) }));
 
     // --- System Health ---
-    const SystemLogModel = mongoose.model<ISystemLog>('SystemLog');
+    const SystemLogModel = mongoose.model<ISystemLog>('SystemLog', SystemLogSchema);
     const errorRates = await SystemLogModel.aggregate([
         { $match: { timestamp: { $gte: startDate }, level: { $in: ['critical', 'error', 'warning']} } },
         { $group: { 
