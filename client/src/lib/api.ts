@@ -342,6 +342,24 @@ class ApiClient {
       body: JSON.stringify(config),
     });
   }
+
+  // System Prompts Management
+  async getSystemPrompts() {
+    return this.request('/system/prompts');
+  }
+
+  async updateSystemPrompt(strictnessLevel: 'lenient' | 'standard' | 'strict', prompt: string) {
+    return this.request(`/system/prompts/${strictnessLevel}`, {
+      method: 'PUT',
+      body: JSON.stringify({ prompt })
+    });
+  }
+
+  async resetSystemPrompt(strictnessLevel: 'lenient' | 'standard' | 'strict') {
+    return this.request(`/system/prompts/${strictnessLevel}/reset`, {
+      method: 'POST'
+    });
+  }
 }
 
 export const apiClient = new ApiClient(); 

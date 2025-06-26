@@ -1,9 +1,10 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import mongoose, { Schema, model, Document, Model } from 'mongoose';
 import { ISystemConfig as ISystemConfigShared, SystemConfigSchema } from 'modl-shared-web';
 import { requireAuth } from '../middleware/authMiddleware';
+import { logAuditEvent } from './security';
 
 type ISystemConfig = ISystemConfigShared & Document;
 
@@ -297,5 +298,294 @@ router.put('/rate-limits', configRateLimit, async (req, res) => {
     });
   }
 });
+
+// System Prompts Management Routes
+interface ISystemPrompt extends Document {
+  strictnessLevel: 'lenient' | 'standard' | 'strict';
+  prompt: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const SystemPromptSchema = new Schema<ISystemPrompt>({
+  strictnessLevel: {
+    type: String,
+    enum: ['lenient', 'standard', 'strict'],
+    required: true,
+    unique: true
+  },
+  prompt: {
+    type: String,
+    required: true
+  },
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
+  }
+}, {
+  timestamps: true
+});
+
+const getSystemPromptModel = (): Model<ISystemPrompt> => {
+  return mongoose.models.SystemPrompt || mongoose.model<ISystemPrompt>('SystemPrompt', SystemPromptSchema);
+};
+
+// Get all system prompts
+router.get('/prompts', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const SystemPrompt = getSystemPromptModel();
+    const prompts = await SystemPrompt.find({}).sort({ strictnessLevel: 1 });
+    
+    res.json({
+      success: true,
+      data: prompts
+    });
+  } catch (error: any) {
+    console.error('Error fetching system prompts:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch system prompts',
+      message: error.message
+    });
+  }
+});
+
+// Update a system prompt
+// @ts-ignore
+router.put('/prompts/:strictnessLevel', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { strictnessLevel } = req.params;
+    const { prompt } = req.body;
+
+    // Validate strictness level
+    if (!['lenient', 'standard', 'strict'].includes(strictnessLevel)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid strictness level. Must be lenient, standard, or strict.'
+      });
+    }
+
+    // Validate prompt content
+    if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Prompt content is required and must be a non-empty string.'
+      });
+    }
+
+    const SystemPrompt = getSystemPromptModel();
+    
+    // Update or create the prompt
+    const updatedPrompt = await SystemPrompt.findOneAndUpdate(
+      { strictnessLevel },
+      { 
+        prompt: prompt.trim(),
+        updatedAt: new Date()
+      },
+      { 
+        upsert: true, 
+        new: true,
+        setDefaultsOnInsert: true
+      }
+    );
+
+    // Log the admin action
+    await logAuditEvent({
+      // @ts-ignore
+      adminId: req.session?.adminId || 'system',
+      action: 'update_system_prompt',
+      resource: `system_prompt_${strictnessLevel}`,
+      details: {
+        strictnessLevel,
+        promptLength: prompt.length,
+        previousPromptId: updatedPrompt._id
+      },
+      severity: 'medium',
+      success: true,
+      ip: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
+    res.json({
+      success: true,
+      data: updatedPrompt,
+      message: `System prompt for ${strictnessLevel} level updated successfully`
+    });
+  } catch (error: any) {
+    console.error('Error updating system prompt:', error);
+    
+    // Log the failed attempt
+    await logAuditEvent({
+      // @ts-ignore
+      adminId: req.session?.adminId || 'system',
+      action: 'update_system_prompt',
+      resource: `system_prompt_${req.params.strictnessLevel}`,
+      details: {
+        error: error.message,
+        strictnessLevel: req.params.strictnessLevel
+      },
+      severity: 'high',
+      success: false,
+      ip: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update system prompt',
+      message: error.message
+    });
+  }
+});
+
+// Reset a system prompt to default
+// @ts-ignore
+router.post('/prompts/:strictnessLevel/reset', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { strictnessLevel } = req.params;
+
+    // Validate strictness level
+    if (!['lenient', 'standard', 'strict'].includes(strictnessLevel)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid strictness level. Must be lenient, standard, or strict.'
+      });
+    }
+
+    // Get default prompt (this would need to be implemented similar to the modl-panel service)
+    const defaultPrompt = getDefaultPromptForLevel(strictnessLevel as 'lenient' | 'standard' | 'strict');
+
+    const SystemPrompt = getSystemPromptModel();
+    
+    // Reset to default prompt
+    const resetPrompt = await SystemPrompt.findOneAndUpdate(
+      { strictnessLevel },
+      { 
+        prompt: defaultPrompt,
+        updatedAt: new Date()
+      },
+      { 
+        upsert: true, 
+        new: true,
+        setDefaultsOnInsert: true
+      }
+    );
+
+    // Log the admin action
+    await logAuditEvent({
+      // @ts-ignore
+      adminId: req.session?.adminId || 'system',
+      action: 'reset_system_prompt',
+      resource: `system_prompt_${strictnessLevel}`,
+      details: {
+        strictnessLevel,
+        resetToDefault: true
+      },
+      severity: 'medium',
+      success: true,
+      ip: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
+    res.json({
+      success: true,
+      data: resetPrompt,
+      message: `System prompt for ${strictnessLevel} level reset to default`
+    });
+  } catch (error: any) {
+    console.error('Error resetting system prompt:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to reset system prompt',
+      message: error.message
+    });
+  }
+});
+
+// Helper function to get default prompts (extracted from modl-panel service)
+function getDefaultPromptForLevel(strictnessLevel: 'lenient' | 'standard' | 'strict'): string {
+  const baseJsonFormat = `
+{
+  "analysis": "Brief explanation of what rule violations (if any) were found in the chat",
+  "suggestedAction": {
+    "punishmentTypeId": <punishment_type_id_number>,
+    "severity": "low|regular|severe"
+  } OR null if no action needed,
+  "confidence": <number between 0 and 1>
+}`;
+
+  const commonInstructions = `
+You are an AI moderator analyzing Minecraft server chat logs for rule violations. Analyze the provided chat transcript and determine if any moderation action is needed.
+
+IMPORTANT RULES TO ENFORCE:
+- Harassment, bullying, or toxic behavior toward other players
+- Excessive profanity or inappropriate language
+- Spam or flooding chat
+- Advertising other servers
+- Cheating accusations or discussions
+- Threats or doxxing
+- Inappropriate content (sexual, violent, etc.)
+- Discrimination based on race, gender, religion, etc.
+
+RESPONSE FORMAT:
+You must respond with a valid JSON object in this exact format:
+${baseJsonFormat}
+
+PUNISHMENT SEVERITY GUIDELINES:
+- "low": Minor infractions, first-time offenses, borderline cases
+- "regular": Clear rule violations, repeat minor offenses
+- "severe": Serious violations, multiple rule breaks, toxic behavior
+
+Choose the most appropriate punishment type from the provided list based on the violation category and severity.`;
+
+  const strictnessPrompts = {
+    lenient: `${commonInstructions}
+
+LENIENT MODE - Additional Guidelines:
+- Give players the benefit of the doubt when context is unclear
+- Only suggest action for clear, obvious rule violations
+- Prefer warnings and lighter punishments for first-time offenses
+- Consider context and intent - friendly banter may not require action
+- Be more forgiving of minor language issues
+- Focus on patterns of behavior rather than isolated incidents
+
+If there's any ambiguity about whether something violates rules, err on the side of no action.`,
+
+    standard: `${commonInstructions}
+
+STANDARD MODE - Additional Guidelines:
+- Apply consistent moderation based on clear rule violations
+- Consider the severity and impact of violations on the community
+- Balance player behavior with server standards
+- Escalate punishment severity for repeat offenses when evident
+- Take context into account but enforce rules fairly
+- Focus on maintaining a positive gaming environment
+
+Apply appropriate action when rules are clearly violated, using good judgment for edge cases.`,
+
+    strict: `${commonInstructions}
+
+STRICT MODE - Additional Guidelines:
+- Enforce rules rigorously with zero tolerance for violations
+- Take action on borderline cases that could negatively impact the community
+- Prefer higher severity punishments to maintain server standards
+- Consider even minor infractions as worthy of moderation action
+- Prioritize community safety and positive environment over individual leniency
+- Be proactive in preventing escalation of problematic behavior
+
+When in doubt, err on the side of taking moderation action to maintain high community standards.`
+  };
+
+  return strictnessPrompts[strictnessLevel];
+}
 
 export default router; 

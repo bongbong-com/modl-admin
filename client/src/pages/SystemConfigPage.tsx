@@ -311,6 +311,28 @@ export default function SystemConfigPage() {
                 </div>
 
                 <div className="border-t pt-6">
+                  <h3 className="text-lg font-medium mb-4">AI System Management</h3>
+                  <div className="space-y-4">
+                    <Card className="bg-blue-50 border-blue-200">
+                      <CardContent className="pt-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium">AI Moderation Prompts</p>
+                            <p className="text-sm text-muted-foreground">Configure AI prompts for automated ticket moderation</p>
+                          </div>
+                          <Link href="/system/prompts">
+                            <Button variant="outline" size="sm">
+                              <Settings className="h-4 w-4 mr-2" />
+                              Manage Prompts
+                            </Button>
+                          </Link>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+
+                <div className="border-t pt-6">
                   <h3 className="text-lg font-medium mb-4">Maintenance Mode</h3>
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
