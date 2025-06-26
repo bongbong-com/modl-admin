@@ -26,8 +26,7 @@
     "paths": {
       "@/*": ["./shared/*"],
       "@server/*": ["./server/*"],
-      "@client/*": ["./client/src/*"],
-      "modl-shared-web/*": ["../modl-shared-web/src/*"]
+      "@client/*": ["./client/src/*"]
     }
   },
   "include": [

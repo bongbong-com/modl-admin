@@ -146,6 +146,18 @@ class ApiClient {
     });
   }
 
+  async resetDatabase(id: string) {
+    return this.request(`/servers/${id}/reset-database`, {
+      method: 'POST',
+    });
+  }
+
+  async exportData(id: string) {
+    return this.request(`/servers/${id}/export-data`, {
+      method: 'POST',
+    });
+  }
+
   // Dashboard/Analytics endpoints
   async getDashboardStats() {
     return this.request('/analytics/dashboard');

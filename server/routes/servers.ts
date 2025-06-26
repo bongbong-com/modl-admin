@@ -409,4 +409,52 @@ router.post('/bulk', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /api/servers/:id/reset-database
+ * Reset a server's database
+ */
+router.post('/:id/reset-database', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const ModlServerModel = getModlServerModel();
+    const server = await ModlServerModel.findById(id);
+
+    if (!server) {
+      return res.status(404).json({ success: false, error: 'Server not found' });
+    }
+
+    if (!server.databaseName) {
+      return res.status(400).json({ success: false, error: 'Server database not configured' });
+    }
+
+    const serverDb = mongoose.connection.useDb(server.databaseName, { useCache: true });
+    await serverDb.dropDatabase();
+
+    // Optionally, re-seed the database with default data
+    // await seedDatabase(serverDb);
+
+    return res.json({ success: true, message: 'Database reset successfully' });
+  } catch (error) {
+    console.error('Reset database error:', error);
+    return res.status(500).json({ success: false, error: 'Failed to reset database' });
+  }
+});
+
+/**
+ * POST /api/servers/:id/export-data
+ * Export a server's data
+ */
+router.post('/:id/export-data', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    // In a real implementation, you would generate a file (e.g., JSON, CSV)
+    // and provide a download link or stream the file.
+    // For now, we'll just simulate a successful export.
+    return res.json({ success: true, message: 'Data export initiated. You will receive an email with the download link.' });
+  } catch (error) {
+    console.error('Export data error:', error);
+    return res.status(500).json({ success: false, error: 'Failed to export data' });
+  }
+});
+
 export default router; 

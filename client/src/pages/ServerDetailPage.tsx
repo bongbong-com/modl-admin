@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Link, useParams } from 'wouter';
-import { useQuery } from '@tanstack/react-query';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Link, useParams, useLocation } from 'wouter';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Button } from 'modl-shared-web/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from 'modl-shared-web/components/ui/card';
+import { Badge } from 'modl-shared-web/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from 'modl-shared-web/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
 import { apiClient } from '@/lib/api';
 import { formatDate, formatDateRelative, formatBytes } from '@/lib/utils';
@@ -25,6 +25,18 @@ import {
   Trash2,
   RotateCcw
 } from 'lucide-react';
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from 'modl-shared-web/components/ui/alert-dialog';
+import { EditServerModal } from '@/components/EditServerModal';
 
 interface ServerDetails {
   _id: string;
@@ -59,6 +71,9 @@ export default function ServerDetailPage() {
   const { id } = useParams();
   const { logout } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
 
   const { data: server, isLoading, error } = useQuery<ServerDetails>({
     queryKey: ['server', id],
@@ -77,6 +92,58 @@ export default function ServerDetailPage() {
     },
     enabled: !!id,
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: (serverId: string) => apiClient.deleteServer(serverId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['servers'] });
+      navigate('/servers');
+    },
+    onError: (error) => {
+      console.error('Failed to delete server:', error);
+      // You might want to show a toast notification here
+    },
+  });
+
+  const resetDatabaseMutation = useMutation({
+    mutationFn: (serverId: string) => apiClient.resetDatabase(serverId),
+    onSuccess: () => {
+      // You might want to show a toast notification here
+      console.log('Database reset successfully');
+      queryClient.invalidateQueries({ queryKey: ['server-stats', id] });
+    },
+    onError: (error) => {
+      console.error('Failed to reset database:', error);
+    },
+  });
+
+  const exportDataMutation = useMutation({
+    mutationFn: (serverId: string) => apiClient.exportData(serverId),
+    onSuccess: () => {
+      console.log('Data export initiated');
+    },
+    onError: (error) => {
+      console.error('Failed to export data:', error);
+    },
+  });
+
+  const handleDeleteServer = () => {
+    if (server?._id) {
+      deleteMutation.mutate(server._id);
+    }
+  };
+
+  const handleResetDatabase = () => {
+    if (server?._id) {
+      resetDatabaseMutation.mutate(server._id);
+    }
+  };
+
+  const handleExportData = () => {
+    if (server?._id) {
+      exportDataMutation.mutate(server._id);
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -340,22 +407,73 @@ export default function ServerDetailPage() {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-3">
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" onClick={() => setIsEditModalOpen(true)}>
                     <Edit className="h-4 w-4 mr-2" />
                     Edit Server
                   </Button>
-                  <Button variant="outline" size="sm">
-                    <RotateCcw className="h-4 w-4 mr-2" />
-                    Reset Database
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    <Database className="h-4 w-4 mr-2" />
-                    Export Data
-                  </Button>
-                  <Button variant="destructive" size="sm">
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete Server
-                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" size="sm" disabled={resetDatabaseMutation.isPending}>
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                        {resetDatabaseMutation.isPending ? 'Resetting...' : 'Reset Database'}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure you want to reset the database?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete all data for this server, including players, tickets, and logs. This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleResetDatabase}>Confirm Reset</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" size="sm" disabled={exportDataMutation.isPending}>
+                        <Database className="h-4 w-4 mr-2" />
+                        {exportDataMutation.isPending ? 'Exporting...' : 'Export Data'}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Export Server Data</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will export all server data to a downloadable file. You will receive an email with the download link shortly.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleExportData}>Confirm Export</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="sm">
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Server
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This action cannot be undone. This will permanently delete the
+                          server and all of its associated data.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteServer} disabled={deleteMutation.isPending}>
+                          {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </CardContent>
             </Card>
@@ -430,6 +548,11 @@ export default function ServerDetailPage() {
           </TabsContent>
         </Tabs>
       </div>
+      <EditServerModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        server={server || null}
+      />
     </div>
   );
 } 

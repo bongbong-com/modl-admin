@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Button } from 'modl-shared-web/components/ui/button';
+import { Input } from 'modl-shared-web/components/ui/input';
+import { Badge } from 'modl-shared-web/components/ui/badge';
+import { Card, CardContent } from 'modl-shared-web/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from 'modl-shared-web/components/ui/select';
+import { Checkbox } from 'modl-shared-web/components/ui/checkbox';
 import { apiClient } from '@/lib/api';
 import { formatDate, formatDateRelative } from '@/lib/utils';
 import { 
