@@ -146,6 +146,7 @@ class ApiClient {
     });
   }
 
+  // Reset server to provisioning state (clears database and resets provisioning status)
   async resetDatabase(id: string) {
     return this.request(`/servers/${id}/reset-database`, {
       method: 'POST',

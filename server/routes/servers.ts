@@ -411,7 +411,7 @@ router.post('/bulk', async (req: Request, res: Response) => {
 
 /**
  * POST /api/servers/:id/reset-database
- * Reset a server's database
+ * Reset a server to provisioning state for reinitialization
  */
 router.post('/:id/reset-database', async (req: Request, res: Response) => {
   try {
@@ -423,20 +423,39 @@ router.post('/:id/reset-database', async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, error: 'Server not found' });
     }
 
-    if (!server.databaseName) {
-      return res.status(400).json({ success: false, error: 'Server database not configured' });
+    // Reset server to provisioning state
+    await ModlServerModel.findByIdAndUpdate(id, {
+      provisioningStatus: 'pending',
+      provisioningNotes: 'Database reset - awaiting reprovisioning',
+      lastActivityAt: null,
+      updatedAt: new Date(),
+      // Clear any custom domain settings that may need reconfiguration
+      customDomain_status: undefined,
+      customDomain_lastChecked: undefined,
+      customDomain_error: undefined
+    });
+
+    // Only drop the database if it exists and is configured
+    if (server.databaseName) {
+      try {
+        const serverDb = mongoose.connection.useDb(server.databaseName, { useCache: true });
+        await serverDb.dropDatabase();
+        console.log(`Database ${server.databaseName} dropped for server ${server.serverName}`);
+      } catch (dbError) {
+        console.warn(`Warning: Could not drop database ${server.databaseName}:`, dbError);
+        // Continue with the reset even if database drop fails
+      }
     }
 
-    const serverDb = mongoose.connection.useDb(server.databaseName, { useCache: true });
-    await serverDb.dropDatabase();
+    console.log(`Server ${server.serverName} reset to provisioning state by admin`);
 
-    // Optionally, re-seed the database with default data
-    // await seedDatabase(serverDb);
-
-    return res.json({ success: true, message: 'Database reset successfully' });
+    return res.json({ 
+      success: true, 
+      message: 'Server reset to provisioning state. The provisioning system will reinitialize the database with proper structure and seed data.' 
+    });
   } catch (error) {
     console.error('Reset database error:', error);
-    return res.status(500).json({ success: false, error: 'Failed to reset database' });
+    return res.status(500).json({ success: false, error: 'Failed to reset server' });
   }
 });
 

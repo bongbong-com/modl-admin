@@ -109,11 +109,12 @@ export default function ServerDetailPage() {
     mutationFn: (serverId: string) => apiClient.resetDatabase(serverId),
     onSuccess: () => {
       // You might want to show a toast notification here
-      console.log('Database reset successfully');
+      console.log('Server reset to provisioning state successfully');
       queryClient.invalidateQueries({ queryKey: ['server-stats', id] });
+      queryClient.invalidateQueries({ queryKey: ['server', id] });
     },
     onError: (error) => {
-      console.error('Failed to reset database:', error);
+      console.error('Failed to reset server to provisioning state:', error);
     },
   });
 
@@ -415,14 +416,14 @@ export default function ServerDetailPage() {
                     <AlertDialogTrigger asChild>
                       <Button variant="outline" size="sm" disabled={resetDatabaseMutation.isPending}>
                         <RotateCcw className="h-4 w-4 mr-2" />
-                        {resetDatabaseMutation.isPending ? 'Resetting...' : 'Reset Database'}
+                        {resetDatabaseMutation.isPending ? 'Resetting...' : 'Reset to Provisioning'}
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure you want to reset the database?</AlertDialogTitle>
+                        <AlertDialogTitle>Reset server to provisioning state?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          This will permanently delete all data for this server, including players, tickets, and logs. This action cannot be undone.
+                          This will reset the server back to provisioning state, clearing all data (players, tickets, logs) and allowing the provisioning system to reinitialize the database with proper structure and seed data. This action cannot be undone.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
