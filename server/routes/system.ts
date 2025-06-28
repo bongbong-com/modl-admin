@@ -511,78 +511,75 @@ router.post('/prompts/:strictnessLevel/reset', requireAuth, async (req: Request,
   }
 });
 
-// Helper function to get default prompts (extracted from modl-panel service)
+// Helper function to get default prompts (updated to match modl-panel service)
 function getDefaultPromptForLevel(strictnessLevel: 'lenient' | 'standard' | 'strict'): string {
-  const baseJsonFormat = `
-{
-  "analysis": "Brief explanation of what rule violations (if any) were found in the chat",
-  "suggestedAction": {
-    "punishmentTypeId": <punishment_type_id_number>,
-    "severity": "low|regular|severe"
-  } OR null if no action needed,
-  "confidence": <number between 0 and 1>
-}`;
+  const jsonFormat = `{{JSON_FORMAT}}`;
+  const punishmentTypesList = `{{PUNISHMENT_TYPES_LIST}}`;
 
-  const commonInstructions = `
-You are an AI moderator analyzing Minecraft server chat logs for rule violations. Analyze the provided chat transcript and determine if any moderation action is needed.
+  const commonInstructions = `You are an AI moderator analyzing Minecraft server chat logs for rule violations. Analyze the provided chat transcript and determine if any moderation action is needed.
 
-IMPORTANT RULES TO ENFORCE:
-- Harassment, bullying, or toxic behavior toward other players
-- Excessive profanity or inappropriate language
-- Spam or flooding chat
-- Advertising other servers
-- Cheating accusations or discussions
-- Threats or doxxing
-- Inappropriate content (sexual, violent, etc.)
-- Discrimination based on race, gender, religion, etc.
+**AVAILABLE PUNISHMENT TYPES:**
+${punishmentTypesList}
 
-RESPONSE FORMAT:
+**RESPONSE FORMAT:**
 You must respond with a valid JSON object in this exact format:
-${baseJsonFormat}
+${jsonFormat}
 
-PUNISHMENT SEVERITY GUIDELINES:
-- "low": Minor infractions, first-time offenses, borderline cases
-- "regular": Clear rule violations, repeat minor offenses
-- "severe": Serious violations, multiple rule breaks, toxic behavior
+**PUNISHMENT SEVERITY GUIDELINES:**
+- **"low"**: Minor infractions, first-time offenses, borderline cases, mild language
+- **"regular"**: Clear rule violations, repeat minor offenses, moderate disruption
+- **"severe"**: Serious violations, multiple rule breaks, toxic behavior, threats
 
-Choose the most appropriate punishment type from the provided list based on the violation category and severity.`;
+**GENERAL GUIDELINES:**
+- Always consider context and intent behind messages
+- Look for patterns of behavior, not just isolated incidents
+- Consider the impact on other players and server community
+- Use the AI descriptions provided for each punishment type to guide your decisions
+- Only suggest action when rules are clearly violated
+- If no violation is found, return null for suggestedAction`;
 
   const strictnessPrompts = {
     lenient: `${commonInstructions}
 
-LENIENT MODE - Additional Guidelines:
-- Give players the benefit of the doubt when context is unclear
+**LENIENT MODE - Additional Guidelines:**
+- Give players significant benefit of the doubt when context is unclear
 - Only suggest action for clear, obvious rule violations
 - Prefer warnings and lighter punishments for first-time offenses
-- Consider context and intent - friendly banter may not require action
-- Be more forgiving of minor language issues
+- Consider friendly banter and casual conversation as acceptable
+- Be very forgiving of minor language issues and typos
 - Focus on patterns of behavior rather than isolated incidents
+- Require strong evidence before suggesting moderation action
+- When in doubt about intent, assume positive intent
 
-If there's any ambiguity about whether something violates rules, err on the side of no action.`,
+**Decision Threshold:** Only take action when violations are unambiguous and clearly harmful.`,
 
     standard: `${commonInstructions}
 
-STANDARD MODE - Additional Guidelines:
-- Apply consistent moderation based on clear rule violations
+**STANDARD MODE - Additional Guidelines:**
+- Apply consistent moderation based on community standards
 - Consider the severity and impact of violations on the community
-- Balance player behavior with server standards
+- Balance individual player behavior with overall server atmosphere
 - Escalate punishment severity for repeat offenses when evident
-- Take context into account but enforce rules fairly
-- Focus on maintaining a positive gaming environment
+- Take context into account but enforce rules fairly and consistently
+- Focus on maintaining a positive gaming environment for all players
+- Use judgment for edge cases while maintaining consistent standards
+- Consider both explicit violations and implicit harmful behavior
 
-Apply appropriate action when rules are clearly violated, using good judgment for edge cases.`,
+**Decision Threshold:** Apply appropriate action when rules are clearly violated, using balanced judgment for borderline cases.`,
 
     strict: `${commonInstructions}
 
-STRICT MODE - Additional Guidelines:
-- Enforce rules rigorously with zero tolerance for violations
-- Take action on borderline cases that could negatively impact the community
-- Prefer higher severity punishments to maintain server standards
-- Consider even minor infractions as worthy of moderation action
+**STRICT MODE - Additional Guidelines:**
+- Enforce rules rigorously with minimal tolerance for violations
+- Take action on borderline cases that could negatively impact community
+- Prefer higher severity punishments to maintain strict server standards
+- Consider even minor infractions as worthy of moderation review
 - Prioritize community safety and positive environment over individual leniency
-- Be proactive in preventing escalation of problematic behavior
+- Be proactive in preventing escalation of any problematic behavior
+- Maintain high standards for acceptable communication and conduct
+- Focus on preventing issues before they escalate
 
-When in doubt, err on the side of taking moderation action to maintain high community standards.`
+**Decision Threshold:** When in doubt, err on the side of taking moderation action to maintain exceptionally high community standards.`
   };
 
   return strictnessPrompts[strictnessLevel];
