@@ -399,6 +399,16 @@ router.get('/pm2-status', async (req: Request, res: Response) => {
     const status = PM2LogService.getStatus();
     const recentLogs = await PM2LogService.getRecentLogs(10);
     
+    console.log('PM2 status endpoint called, returning:', {
+      ...status,
+      recentLogsCount: recentLogs.length
+    });
+    
+    // Set no-cache headers to prevent caching issues
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    
     return res.json({
       success: true,
       data: {
@@ -773,9 +783,12 @@ async function performHealthChecks() {
     let status: 'healthy' | 'degraded' | 'critical' = 'healthy';
     let message = 'PM2 log streaming is active and healthy.';
     
-    if (!pm2Status.isStreaming) {
+    if (!pm2Status.isEnabled) {
+      status = 'healthy';
+      message = 'PM2 log streaming is disabled by configuration.';
+    } else if (!pm2Status.isStreaming) {
       status = 'critical';
-      message = 'PM2 log streaming is not active.';
+      message = 'PM2 log streaming is enabled but not active.';
     } else if (pm2Status.reconnectAttempts > 0) {
       status = 'degraded';
       message = `PM2 log streaming is active but had ${pm2Status.reconnectAttempts} reconnect attempts.`;

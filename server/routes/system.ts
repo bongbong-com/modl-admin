@@ -70,7 +70,7 @@ const defaultConfig = {
 };
 
 // Helper to get or create the main config
-async function getMainConfig(): Promise<ISystemConfig> {
+export async function getMainConfig(): Promise<ISystemConfig> {
   const SystemConfigModel = getSystemConfigModel();
   
   // First try to find existing config
@@ -207,6 +207,7 @@ router.put('/config', configRateLimit, async (req, res) => {
     );
     
     // Handle PM2 logging state changes
+    console.log(`PM2 config change check: current=${currentPM2Enabled}, new=${newPM2Enabled}`);
     if (currentPM2Enabled !== newPM2Enabled) {
       if (newPM2Enabled) {
         PM2LogService.enable();
@@ -215,7 +216,12 @@ router.put('/config', configRateLimit, async (req, res) => {
       } else {
         PM2LogService.disable();
         console.log('PM2 logging disabled via configuration');
+        // Double check the service is actually disabled
+        const status = PM2LogService.getStatus();
+        console.log('PM2 service status after disable:', status);
       }
+    } else {
+      console.log('No PM2 configuration change detected');
     }
     
     // @ts-ignore

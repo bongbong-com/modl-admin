@@ -252,8 +252,10 @@ class PM2LogService extends EventEmitter {
    * Disable PM2 log streaming
    */
   disable(): void {
+    console.log('PM2LogService.disable() called');
     this.isEnabled = false;
     if (this.isStreaming) {
+      console.log('Stopping PM2 streaming as part of disable');
       this.stopStreaming();
     }
     console.log('PM2 log streaming disabled');

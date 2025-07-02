@@ -176,6 +176,30 @@ app.use('/api/*', (req, res) => {
   });
 });
 
+// Initialize PM2 logging based on database configuration
+async function initializePM2Logging() {
+  try {
+    const { getMainConfig } = await import('./routes/system');
+    const config = await getMainConfig();
+    const pm2Enabled = config.logging?.pm2LoggingEnabled ?? (process.env.PM2_LOGGING_ENABLED !== 'false');
+    
+    if (pm2Enabled) {
+      PM2LogService.startStreaming();
+      console.log(`📊 PM2 log streaming started for modl-panel instance (config: ${pm2Enabled})`);
+    } else {
+      console.log(`📊 PM2 log streaming is disabled by configuration`);
+    }
+  } catch (error) {
+    console.error('Error reading PM2 config from database, using environment variable:', error);
+    if (process.env.PM2_LOGGING_ENABLED !== 'false') {
+      PM2LogService.startStreaming();
+      console.log(`📊 PM2 log streaming started for modl-panel instance (fallback to env var)`);
+    } else {
+      console.log(`📊 PM2 log streaming is disabled (env var fallback)`);
+    }
+  }
+}
+
 // Start server
 async function startServer() {
   try {
@@ -187,13 +211,8 @@ async function startServer() {
       console.log(`🌍 Environment: ${NODE_ENV}`);
       console.log(`🔌 Socket.IO enabled for real-time log streaming`);
       
-      // Check configuration and start PM2 log streaming if enabled
-      if (process.env.PM2_LOGGING_ENABLED !== 'false') {
-        PM2LogService.startStreaming();
-        console.log(`📊 PM2 log streaming started for modl-panel instance`);
-      } else {
-        console.log(`📊 PM2 log streaming is disabled (set PM2_LOGGING_ENABLED=true to enable)`);
-      }
+      // Initialize PM2 log streaming based on configuration
+      initializePM2Logging();
     });
   } catch (error) {
     console.error('Failed to start server:', error);
