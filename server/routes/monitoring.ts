@@ -442,6 +442,166 @@ router.post('/pm2/restart', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /api/monitoring/pm2/toggle
+ * Toggle PM2 log streaming on/off
+ */
+router.post('/pm2/toggle', async (req: Request, res: Response) => {
+  try {
+    const { enabled } = req.body;
+    
+    if (enabled) {
+      PM2LogService.enable();
+      PM2LogService.startStreaming();
+    } else {
+      PM2LogService.disable();
+    }
+    
+    const status = PM2LogService.getStatus();
+    
+    return res.json({
+      success: true,
+      data: status,
+      message: `PM2 log streaming ${enabled ? 'enabled' : 'disabled'}`
+    });
+  } catch (error) {
+    console.error('PM2 toggle error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to toggle PM2 log streaming'
+    });
+  }
+});
+
+/**
+ * POST /api/monitoring/logs/delete
+ * Delete specific logs by IDs
+ */
+router.post('/logs/delete', async (req: Request, res: Response) => {
+  try {
+    const { logIds } = req.body;
+    
+    if (!logIds || !Array.isArray(logIds) || logIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Log IDs are required'
+      });
+    }
+
+    const SystemLogModel = getSystemLogModel();
+    const result = await SystemLogModel.deleteMany({
+      _id: { $in: logIds }
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        deletedCount: result.deletedCount
+      },
+      message: `Successfully deleted ${result.deletedCount} log(s)`
+    });
+  } catch (error) {
+    console.error('Delete logs error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to delete logs'
+    });
+  }
+});
+
+/**
+ * GET /api/monitoring/logs/export
+ * Export logs as CSV
+ */
+router.get('/logs/export', async (req: Request, res: Response) => {
+  try {
+    const {
+      level,
+      source,
+      category,
+      resolved,
+      search,
+      startDate,
+      endDate
+    } = req.query;
+
+    // Build filter object (same as in logs endpoint)
+    const filter: any = {};
+    if (level && level !== 'all') filter.level = level;
+    if (source && source !== 'all') filter.source = source;
+    if (category && category !== 'all') filter.category = category;
+    if (resolved && resolved !== 'all') filter.resolved = resolved === 'true';
+    if (search) filter.message = { $regex: search as string, $options: 'i' };
+    if (startDate || endDate) {
+      filter.timestamp = {};
+      if (startDate) filter.timestamp.$gte = new Date(startDate as string);
+      if (endDate) filter.timestamp.$lte = new Date(endDate as string);
+    }
+
+    const SystemLogModel = getSystemLogModel();
+    const logs = await SystemLogModel
+      .find(filter)
+      .sort({ timestamp: -1 })
+      .limit(10000) // Limit to prevent memory issues
+      .lean();
+
+    // Convert to CSV
+    const csvHeader = 'Timestamp,Level,Source,Category,Message,Resolved,Resolved By\n';
+    const csvRows = logs.map((log: any) => {
+      const timestamp = new Date(log.timestamp).toISOString();
+      const level = log.level || '';
+      const source = log.source || '';
+      const category = log.category || '';
+      const message = (log.message || '').replace(/"/g, '""'); // Escape quotes
+      const resolved = log.resolved ? 'Yes' : 'No';
+      const resolvedBy = log.resolvedBy || '';
+      
+      return `"${timestamp}","${level}","${source}","${category}","${message}","${resolved}","${resolvedBy}"`;
+    }).join('\n');
+
+    const csvContent = csvHeader + csvRows;
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="system-logs-${new Date().toISOString().split('T')[0]}.csv"`);
+    
+    return res.send(csvContent);
+  } catch (error) {
+    console.error('Export logs error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to export logs'
+    });
+  }
+});
+
+/**
+ * POST /api/monitoring/logs/clear-all
+ * Clear all system logs
+ */
+router.post('/logs/clear-all', async (req: Request, res: Response) => {
+  try {
+    const SystemLogModel = getSystemLogModel();
+    const result = await SystemLogModel.deleteMany({});
+
+    // Log this critical action
+    console.log(`All system logs cleared by admin: ${(req as any).session?.email || 'unknown'}`);
+
+    return res.json({
+      success: true,
+      data: {
+        deletedCount: result.deletedCount
+      },
+      message: `Successfully cleared all logs (${result.deletedCount} entries deleted)`
+    });
+  } catch (error) {
+    console.error('Clear all logs error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to clear logs'
+    });
+  }
+});
+
 interface HealthCheckItem {
   name: string;
   status: 'healthy' | 'degraded' | 'critical' | 'unknown';

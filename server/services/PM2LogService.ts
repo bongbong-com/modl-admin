@@ -18,6 +18,7 @@ class PM2LogService extends EventEmitter {
   private reconnectInterval: NodeJS.Timeout | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
+  private isEnabled = process.env.PM2_LOGGING_ENABLED !== 'false'; // Enabled by default
 
   constructor() {
     super();
@@ -27,6 +28,11 @@ class PM2LogService extends EventEmitter {
    * Start streaming logs from PM2 instance "modl-panel"
    */
   startStreaming(): void {
+    if (!this.isEnabled) {
+      console.log('PM2 log streaming is disabled');
+      return;
+    }
+
     if (this.isStreaming) {
       console.log('PM2 log streaming already active');
       return;
@@ -235,10 +241,30 @@ class PM2LogService extends EventEmitter {
   }
 
   /**
+   * Enable PM2 log streaming
+   */
+  enable(): void {
+    this.isEnabled = true;
+    console.log('PM2 log streaming enabled');
+  }
+
+  /**
+   * Disable PM2 log streaming
+   */
+  disable(): void {
+    this.isEnabled = false;
+    if (this.isStreaming) {
+      this.stopStreaming();
+    }
+    console.log('PM2 log streaming disabled');
+  }
+
+  /**
    * Get the current streaming status
    */
-  getStatus(): { isStreaming: boolean; reconnectAttempts: number } {
+  getStatus(): { isEnabled: boolean; isStreaming: boolean; reconnectAttempts: number } {
     return {
+      isEnabled: this.isEnabled,
       isStreaming: this.isStreaming,
       reconnectAttempts: this.reconnectAttempts
     };

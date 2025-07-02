@@ -187,9 +187,13 @@ async function startServer() {
       console.log(`🌍 Environment: ${NODE_ENV}`);
       console.log(`🔌 Socket.IO enabled for real-time log streaming`);
       
-      // Start PM2 log streaming
-      PM2LogService.startStreaming();
-      console.log(`📊 PM2 log streaming started for modl-panel instance`);
+      // Check configuration and start PM2 log streaming if enabled
+      if (process.env.PM2_LOGGING_ENABLED !== 'false') {
+        PM2LogService.startStreaming();
+        console.log(`📊 PM2 log streaming started for modl-panel instance`);
+      } else {
+        console.log(`📊 PM2 log streaming is disabled (set PM2_LOGGING_ENABLED=true to enable)`);
+      }
     });
   } catch (error) {
     console.error('Failed to start server:', error);

@@ -41,6 +41,11 @@ interface SystemConfig {
     maintenanceMode: boolean;
     maintenanceMessage: string;
   };
+  logging: {
+    pm2LoggingEnabled: boolean;
+    logRetentionDays: number;
+    maxLogSizePerDay: number;
+  };
   security: {
     sessionTimeout: number;
     maxLoginAttempts: number;
@@ -311,8 +316,9 @@ export default function SystemConfigPage() {
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="general">General</TabsTrigger>
+            <TabsTrigger value="logging">Logging</TabsTrigger>
             <TabsTrigger value="security">Security</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
             <TabsTrigger value="performance">Performance</TabsTrigger>
@@ -421,6 +427,62 @@ export default function SystemConfigPage() {
                         />
                       </div>
                     )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="logging" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Database className="h-5 w-5 mr-2" />
+                  PM2 Log Streaming
+                </CardTitle>
+                <CardDescription>
+                  Configure real-time log streaming from modl-panel PM2 instance
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="pm2LoggingEnabled"
+                    checked={config?.logging.pm2LoggingEnabled || false}
+                    onCheckedChange={(checked) => handleConfigChange('logging', 'pm2LoggingEnabled', checked)}
+                  />
+                  <label htmlFor="pm2LoggingEnabled" className="text-sm font-medium">
+                    Enable PM2 log streaming
+                  </label>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  When enabled, logs from the modl-panel PM2 instance will be streamed in real-time to the system logs.
+                  Disable this to prevent MongoDB from filling up during development.
+                </p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Log Retention (Days)</label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={365}
+                      value={config?.logging.logRetentionDays || 30}
+                      onChange={(e) => handleConfigChange('logging', 'logRetentionDays', parseInt(e.target.value))}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">How long to keep logs in the database</p>
+                  </div>
+                  
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Max Log Size Per Day (bytes)</label>
+                    <Input
+                      type="number"
+                      min={1000}
+                      max={100000000}
+                      value={config?.logging.maxLogSizePerDay || 1000000}
+                      onChange={(e) => handleConfigChange('logging', 'maxLogSizePerDay', parseInt(e.target.value))}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Maximum log storage per day</p>
                   </div>
                 </div>
               </CardContent>

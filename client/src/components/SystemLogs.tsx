@@ -6,6 +6,7 @@ import { Badge } from 'modl-shared-web/components/ui/badge';
 import { Card, CardContent } from 'modl-shared-web/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from 'modl-shared-web/components/ui/select';
 import { Checkbox } from 'modl-shared-web/components/ui/checkbox';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from 'modl-shared-web/components/ui/alert-dialog';
 import { apiClient } from '@/lib/api';
 import { formatDate, formatDateRelative } from '@/lib/utils';
 import { useSocket } from '@/hooks/use-socket';
@@ -63,6 +64,7 @@ export default function SystemLogs() {
   const [sortBy, setSortBy] = useState<'timestamp' | 'level'>('timestamp');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [realTimeEnabled, setRealTimeEnabled] = useState(true);
+  const [showClearAllDialog, setShowClearAllDialog] = useState(false);
   
   const [filters, setFilters] = useState<LogFilters>({
     level: 'all',
@@ -159,6 +161,74 @@ export default function SystemLogs() {
     },
   });
 
+  // Delete logs mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (logIds: string[]) => {
+      const response = await fetch('/api/monitoring/logs/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ logIds })
+      });
+      if (!response.ok) throw new Error('Failed to delete logs');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['system-logs'] });
+      setSelectedLogs([]);
+    },
+  });
+
+  // Export logs mutation
+  const exportMutation = useMutation({
+    mutationFn: async () => {
+      const params = new URLSearchParams({
+        ...(filters.level !== 'all' && { level: filters.level }),
+        ...(filters.source !== 'all' && { source: filters.source }),
+        ...(filters.category !== 'all' && { category: filters.category }),
+        ...(filters.resolved !== 'all' && { resolved: filters.resolved }),
+        ...(filters.search && { search: filters.search }),
+        ...(filters.startDate && { startDate: filters.startDate }),
+        ...(filters.endDate && { endDate: filters.endDate })
+      });
+      
+      const response = await fetch(`/api/monitoring/logs/export?${params}`, {
+        method: 'GET',
+        credentials: 'include'
+      });
+      
+      if (!response.ok) throw new Error('Failed to export logs');
+      
+      // Create download link
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `system-logs-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    },
+  });
+
+  // Clear all logs mutation
+  const clearAllMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/monitoring/logs/clear-all', {
+        method: 'POST',
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Failed to clear logs');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['system-logs'] });
+      setSelectedLogs([]);
+      setShowClearAllDialog(false);
+    },
+  });
+
   const logs = logsData?.logs || [];
   const pagination = logsData?.pagination;
 
@@ -199,6 +269,23 @@ export default function SystemLogs() {
     }
   };
 
+  const handleDeleteSelected = () => {
+    if (selectedLogs.length > 0) {
+      const confirmed = window.confirm(`Are you sure you want to delete ${selectedLogs.length} selected log(s)? This action cannot be undone.`);
+      if (confirmed) {
+        deleteMutation.mutate(selectedLogs);
+      }
+    }
+  };
+
+  const handleExportLogs = () => {
+    exportMutation.mutate();
+  };
+
+  const confirmClearAllLogs = () => {
+    clearAllMutation.mutate();
+  };
+
   const handleFilterChange = (key: keyof LogFilters, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
     setPage(1); // Reset to first page when filtering
@@ -220,9 +307,30 @@ export default function SystemLogs() {
   return (
     <div className="space-y-4">
       {/* Header Controls */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="flex items-center space-x-4">
+      <div className="flex flex-col gap-4">
+        {/* Title row with badges */}
+        <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold">System Logs</h3>
+          <div className="flex items-center space-x-2">
+            {newLogs.length > 0 && (
+              <Badge variant="default" className="bg-blue-600">
+                <Zap className="h-3 w-3 mr-1" />
+                {newLogs.length} new
+              </Badge>
+            )}
+            {pm2Status?.data && (
+              <Badge 
+                variant={pm2Status.data.isEnabled && pm2Status.data.isStreaming ? "default" : "destructive"}
+                className={pm2Status.data.isEnabled && pm2Status.data.isStreaming ? "bg-green-600" : "bg-red-600"}
+              >
+                PM2 {!pm2Status.data.isEnabled ? 'Disabled' : pm2Status.data.isStreaming ? 'Active' : 'Inactive'}
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        {/* Controls row */}
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
           <div className="flex items-center space-x-2">
             <Button 
               variant="outline" 
@@ -237,20 +345,6 @@ export default function SystemLogs() {
               )}
               {realTimeEnabled ? 'Real-time' : 'Static'}
             </Button>
-            {newLogs.length > 0 && (
-              <Badge variant="default" className="bg-blue-600">
-                <Zap className="h-3 w-3 mr-1" />
-                {newLogs.length} new
-              </Badge>
-            )}
-            {pm2Status?.data && (
-              <Badge 
-                variant={pm2Status.data.isStreaming ? "default" : "destructive"}
-                className={pm2Status.data.isStreaming ? "bg-green-600" : "bg-red-600"}
-              >
-                PM2 {pm2Status.data.isStreaming ? 'Active' : 'Inactive'}
-              </Badge>
-            )}
             <Button 
               variant="outline" 
               size="sm" 
@@ -269,30 +363,69 @@ export default function SystemLogs() {
               Filters
             </Button>
           </div>
-        </div>
         
-        <div className="flex items-center space-x-2">
-          {selectedLogs.length > 0 && (
-            <>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleResolveSelected}
-                disabled={resolveMutation.isPending}
-              >
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Resolve ({selectedLogs.length})
-              </Button>
-              <Button variant="outline" size="sm" disabled>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
-              </Button>
-            </>
-          )}
-          <Button variant="outline" size="sm" disabled>
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
+          <div className="flex items-center space-x-2">
+            {selectedLogs.length > 0 && (
+              <>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleResolveSelected}
+                  disabled={resolveMutation.isPending}
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Resolve ({selectedLogs.length})
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleDeleteSelected}
+                  disabled={deleteMutation.isPending}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete ({selectedLogs.length})
+                </Button>
+              </>
+            )}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleExportLogs}
+              disabled={exportMutation.isPending}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              {exportMutation.isPending ? 'Exporting...' : 'Export'}
+            </Button>
+            <AlertDialog open={showClearAllDialog} onOpenChange={setShowClearAllDialog}>
+              <AlertDialogTrigger asChild>
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  disabled={clearAllMutation.isPending}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  {clearAllMutation.isPending ? 'Clearing...' : 'Clear All'}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Clear All System Logs</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to delete ALL system logs? This action cannot be undone and will permanently remove all log entries from the database.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={confirmClearAllLogs}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Delete All Logs
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
       </div>
 

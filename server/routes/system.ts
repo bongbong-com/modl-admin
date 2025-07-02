@@ -5,6 +5,7 @@ import mongoose, { Schema, model, Document, Model } from 'mongoose';
 import { ISystemConfig as ISystemConfigShared, SystemConfigSchema } from 'modl-shared-web';
 import { requireAuth } from '../middleware/authMiddleware';
 import { logAuditEvent } from './security';
+import PM2LogService from '../services/PM2LogService';
 
 type ISystemConfig = ISystemConfigShared & Document;
 
@@ -26,6 +27,11 @@ const defaultConfig = {
     defaultLanguage: 'en',
     maintenanceMode: false,
     maintenanceMessage: 'System under maintenance. Please check back later.'
+  },
+  logging: {
+    pm2LoggingEnabled: process.env.PM2_LOGGING_ENABLED !== 'false',
+    logRetentionDays: 30,
+    maxLogSizePerDay: 1000000 // 1MB
   },
   security: {
     sessionTimeout: 60,
@@ -91,6 +97,11 @@ const configSchema = z.object({
     maintenanceMode: z.boolean(),
     maintenanceMessage: z.string()
   }),
+  logging: z.object({
+    pm2LoggingEnabled: z.boolean(),
+    logRetentionDays: z.number().min(1).max(365),
+    maxLogSizePerDay: z.number().min(1000).max(100000000) // 1KB to 100MB
+  }),
   security: z.object({
     sessionTimeout: z.number().min(5).max(1440),
     maxLoginAttempts: z.number().min(1).max(10),
@@ -149,12 +160,29 @@ router.put('/config', configRateLimit, async (req, res) => {
   try {
     const validatedConfig = configSchema.parse(req.body);
     
+    // Get current config to check for PM2 logging changes
+    const currentConfig = await getMainConfig();
+    const currentPM2Enabled = currentConfig.logging?.pm2LoggingEnabled ?? true;
+    const newPM2Enabled = validatedConfig.logging.pm2LoggingEnabled;
+    
     const SystemConfigModel = getSystemConfigModel();
     const updatedConfig = await SystemConfigModel.findOneAndUpdate(
       { configId: 'main_config' },
       { $set: validatedConfig },
       { new: true, upsert: true }
     );
+    
+    // Handle PM2 logging state changes
+    if (currentPM2Enabled !== newPM2Enabled) {
+      if (newPM2Enabled) {
+        PM2LogService.enable();
+        PM2LogService.startStreaming();
+        console.log('PM2 logging enabled via configuration');
+      } else {
+        PM2LogService.disable();
+        console.log('PM2 logging disabled via configuration');
+      }
+    }
     
     // @ts-ignore
     console.log(`Configuration updated by admin: ${req.session.email}`);
