@@ -266,54 +266,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Getting Started */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Getting Started</CardTitle>
-              <CardDescription>
-                Welcome to modl Admin! Here are the next steps to get you started.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center space-x-3">
-                  <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-sm font-bold">
-                    1
-                  </div>
-                  <div>
-                    <p className="font-medium">Review Server Management</p>
-                    <p className="text-sm text-muted-foreground">
-                      Check out the servers page to see all registered modl instances
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center space-x-3">
-                  <div className="w-6 h-6 bg-muted rounded-full flex items-center justify-center text-muted-foreground text-sm font-bold">
-                    2
-                  </div>
-                  <div>
-                    <p className="font-medium text-muted-foreground">Monitor System Health</p>
-                    <p className="text-sm text-muted-foreground">
-                      Coming soon: Real-time monitoring and alerting
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center space-x-3">
-                  <div className="w-6 h-6 bg-muted rounded-full flex items-center justify-center text-muted-foreground text-sm font-bold">
-                    3
-                  </div>
-                  <div>
-                    <p className="font-medium text-muted-foreground">Configure Analytics</p>
-                    <p className="text-sm text-muted-foreground">
-                      Coming soon: Advanced analytics and reporting
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+
         </div>
       </main>
     </div>
