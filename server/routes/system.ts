@@ -72,12 +72,46 @@ const defaultConfig = {
 // Helper to get or create the main config
 async function getMainConfig(): Promise<ISystemConfig> {
   const SystemConfigModel = getSystemConfigModel();
-  const config = await SystemConfigModel.findOneAndUpdate(
-    { configId: 'main_config' },
-    { $setOnInsert: { configId: 'main_config', ...defaultConfig } },
-    { new: true, upsert: true, runValidators: true }
-  );
-  return config;
+  
+  // First try to find existing config
+  let config = await SystemConfigModel.findOne({ configId: 'main_config' });
+  
+  if (!config) {
+    // Create new config with defaults if none exists
+    config = await SystemConfigModel.create({
+      configId: 'main_config',
+      ...defaultConfig
+    });
+  } else {
+    // Ensure existing config has all required sections with defaults
+    let needsUpdate = false;
+    const updates: any = {};
+    
+    // Check if logging section exists, if not add it
+    if (!config.logging) {
+      updates.logging = defaultConfig.logging;
+      needsUpdate = true;
+    }
+    
+    // Add other sections if missing
+    Object.keys(defaultConfig).forEach(key => {
+      if (key !== 'logging' && config && !config[key as keyof ISystemConfig]) {
+        updates[key] = defaultConfig[key as keyof typeof defaultConfig];
+        needsUpdate = true;
+      }
+    });
+    
+    // Update config if needed
+    if (needsUpdate) {
+      config = await SystemConfigModel.findOneAndUpdate(
+        { configId: 'main_config' },
+        { $set: updates },
+        { new: true, runValidators: true }
+      );
+    }
+  }
+  
+  return config!;
 }
 
 // Rate limiting configuration

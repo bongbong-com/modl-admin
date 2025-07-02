@@ -160,7 +160,7 @@ export default function SystemConfigPage() {
     const newConfig = {
       ...config,
       [section]: {
-        ...config[section],
+        ...(config[section] || {}),
         [field]: value
       }
     };
@@ -448,7 +448,7 @@ export default function SystemConfigPage() {
                 <div className="flex items-center space-x-2">
                   <Switch
                     id="pm2LoggingEnabled"
-                    checked={config?.logging.pm2LoggingEnabled || false}
+                    checked={config?.logging?.pm2LoggingEnabled || false}
                     onCheckedChange={(checked) => handleConfigChange('logging', 'pm2LoggingEnabled', checked)}
                   />
                   <label htmlFor="pm2LoggingEnabled" className="text-sm font-medium">
@@ -467,7 +467,7 @@ export default function SystemConfigPage() {
                       type="number"
                       min={1}
                       max={365}
-                      value={config?.logging.logRetentionDays || 30}
+                      value={config?.logging?.logRetentionDays || 30}
                       onChange={(e) => handleConfigChange('logging', 'logRetentionDays', parseInt(e.target.value))}
                     />
                     <p className="text-xs text-muted-foreground mt-1">How long to keep logs in the database</p>
@@ -479,7 +479,7 @@ export default function SystemConfigPage() {
                       type="number"
                       min={1000}
                       max={100000000}
-                      value={config?.logging.maxLogSizePerDay || 1000000}
+                      value={config?.logging?.maxLogSizePerDay || 1000000}
                       onChange={(e) => handleConfigChange('logging', 'maxLogSizePerDay', parseInt(e.target.value))}
                     />
                     <p className="text-xs text-muted-foreground mt-1">Maximum log storage per day</p>
