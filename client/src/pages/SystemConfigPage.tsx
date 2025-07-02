@@ -90,17 +90,29 @@ export default function SystemConfigPage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('general');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [config, setConfig] = useState<SystemConfig | null>(null);
+  const [localConfig, setLocalConfig] = useState<SystemConfig | null>(null);
 
-  const { data: systemConfig, isLoading } = useQuery<SystemConfig>({
+  // Fetch system config with proper error handling
+  const { 
+    data: systemConfig, 
+    isLoading, 
+    error: configError,
+    refetch: refetchConfig
+  } = useQuery<SystemConfig>({
     queryKey: ['system-config'],
     queryFn: async () => {
       const response = await apiClient.getSystemConfig();
-      setConfig(response.data);
       return response.data;
     },
+    onSuccess: (data) => {
+      // Set local config when data is successfully fetched
+      setLocalConfig(data);
+    },
+    retry: 3,
+    retryDelay: 1000,
   });
 
+  // Fetch maintenance status
   const { data: maintenanceStatus } = useQuery<MaintenanceStatus>({
     queryKey: ['maintenance-status'],
     queryFn: async () => {
@@ -134,6 +146,9 @@ export default function SystemConfigPage() {
     },
   });
 
+  // Use local config for the working copy, fallback to fetched data
+  const config = localConfig || systemConfig;
+
   const handleConfigChange = (section: keyof SystemConfig, field: string, value: any) => {
     if (!config) return;
     
@@ -145,7 +160,7 @@ export default function SystemConfigPage() {
       }
     };
     
-    setConfig(newConfig);
+    setLocalConfig(newConfig);
     setHasUnsavedChanges(true);
   };
 
@@ -157,7 +172,7 @@ export default function SystemConfigPage() {
 
   const handleResetConfig = () => {
     if (systemConfig) {
-      setConfig(systemConfig);
+      setLocalConfig(systemConfig);
       setHasUnsavedChanges(false);
     }
   };
@@ -166,12 +181,63 @@ export default function SystemConfigPage() {
     toggleMaintenanceMutation.mutate({ enabled, message });
   };
 
-  if (isLoading || !config) {
+  // Loading state
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading system configuration...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (configError || (!config && !isLoading)) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Header */}
+        <header className="bg-white border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center py-6">
+              <div className="flex items-center">
+                <Link href="/">
+                  <Button variant="ghost" size="sm" className="mr-4">
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Back to Dashboard
+                  </Button>
+                </Link>
+                <div className="flex items-center space-x-3">
+                  <Settings className="h-6 w-6 text-muted-foreground" />
+                  <div>
+                    <h1 className="text-2xl font-bold text-gray-900">System Configuration</h1>
+                    <p className="text-sm text-muted-foreground">Manage global system settings and features</p>
+                  </div>
+                </div>
+              </div>
+              <Button onClick={logout} variant="outline">
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </Button>
+            </div>
+          </div>
+        </header>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Card>
+            <CardContent className="text-center py-8">
+              <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-red-500" />
+              <h3 className="text-lg font-semibold mb-2">Failed to Load Configuration</h3>
+              <p className="text-muted-foreground mb-4">
+                {configError ? 'Unable to fetch system configuration.' : 'No configuration data available.'}
+              </p>
+              <Button onClick={() => refetchConfig()} variant="outline">
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Retry
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
