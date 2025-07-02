@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import mongoose, { Schema, model, Document, Model, PipelineStage } from 'mongoose';
 import { ISystemLog as ISystemLogShared, IModlServer as IModlServerShared, ApiResponse, ModlServerSchema, SystemLogSchema } from 'modl-shared-web';
 import { requireAuth } from '../middleware/authMiddleware';
+import PM2LogService from '../services/PM2LogService';
 
 type ISystemLog = ISystemLogShared & Document;
 type IModlServer = IModlServerShared & Document;
@@ -389,6 +390,58 @@ router.get('/health', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * GET /api/monitoring/pm2-status
+ * Get PM2 log streaming status
+ */
+router.get('/pm2-status', async (req: Request, res: Response) => {
+  try {
+    const status = PM2LogService.getStatus();
+    const recentLogs = await PM2LogService.getRecentLogs(10);
+    
+    return res.json({
+      success: true,
+      data: {
+        ...status,
+        recentLogsCount: recentLogs.length,
+        lastLogTime: recentLogs.length > 0 ? recentLogs[0].timestamp : null
+      }
+    });
+  } catch (error) {
+    console.error('PM2 status check error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to get PM2 status'
+    });
+  }
+});
+
+/**
+ * POST /api/monitoring/pm2/restart
+ * Restart PM2 log streaming
+ */
+router.post('/pm2/restart', async (req: Request, res: Response) => {
+  try {
+    PM2LogService.stopStreaming();
+    
+    // Wait a moment before restarting
+    setTimeout(() => {
+      PM2LogService.startStreaming();
+    }, 1000);
+    
+    return res.json({
+      success: true,
+      message: 'PM2 log streaming restarted'
+    });
+  } catch (error) {
+    console.error('PM2 restart error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to restart PM2 log streaming'
+    });
+  }
+});
+
 interface HealthCheckItem {
   name: string;
   status: 'healthy' | 'degraded' | 'critical' | 'unknown';
@@ -550,6 +603,36 @@ async function performHealthChecks() {
         status: 'unknown',
         message: 'Could not check server provisioning status.',
         error: error.message
+    });
+  }
+
+  // Check PM2 log streaming status
+  try {
+    const pm2Status = PM2LogService.getStatus();
+    
+    let status: 'healthy' | 'degraded' | 'critical' = 'healthy';
+    let message = 'PM2 log streaming is active and healthy.';
+    
+    if (!pm2Status.isStreaming) {
+      status = 'critical';
+      message = 'PM2 log streaming is not active.';
+    } else if (pm2Status.reconnectAttempts > 0) {
+      status = 'degraded';
+      message = `PM2 log streaming is active but had ${pm2Status.reconnectAttempts} reconnect attempts.`;
+    }
+    
+    checkAndPush({
+      name: 'PM2 Log Streaming',
+      status: status,
+      message: message,
+      count: pm2Status.reconnectAttempts
+    });
+  } catch (error: any) {
+    checkAndPush({
+      name: 'PM2 Log Streaming',
+      status: 'unknown',
+      message: 'Could not check PM2 log streaming status.',
+      error: error.message
     });
   }
   

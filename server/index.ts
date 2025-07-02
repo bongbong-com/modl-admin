@@ -7,6 +7,8 @@ import cors from 'cors';
 import compression from 'compression';
 import path from 'path';
 import dotenv from 'dotenv';
+import { createServer } from 'http';
+import { Server as SocketIOServer } from 'socket.io';
 
 // Import routes
 import authRoutes from './routes/auth';
@@ -17,13 +19,24 @@ import systemRoutes from './routes/system';
 import securityRoutes from './routes/security';
 import { updateActivity } from './middleware/authMiddleware';
 import EmailService from './services/EmailService';
+import PM2LogService from './services/PM2LogService';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
+const server = createServer(app);
 const PORT = process.env.PORT || 5001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
+
+// Setup Socket.IO for real-time log streaming
+const io = new SocketIOServer(server, {
+  cors: {
+    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
 
 // Database connection
 async function connectDatabase() {
@@ -90,6 +103,30 @@ app.use(session({
 // Global activity tracking middleware
 app.use(updateActivity);
 
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log('Client connected for log streaming:', socket.id);
+  
+  // Send initial connection confirmation
+  socket.emit('connected', { message: 'Connected to log stream' });
+  
+  // Handle client requesting to start log streaming
+  socket.on('startLogStream', () => {
+    console.log('Client requested log streaming');
+    // Client will receive logs through the PM2LogService event emitter
+  });
+  
+  socket.on('disconnect', () => {
+    console.log('Client disconnected from log streaming:', socket.id);
+  });
+});
+
+// Setup PM2 log streaming
+PM2LogService.on('newLog', (logEntry) => {
+  // Broadcast new logs to all connected clients
+  io.emit('newLog', logEntry);
+});
+
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/servers', serverRoutes);
@@ -144,10 +181,15 @@ async function startServer() {
   try {
     await connectDatabase();
     
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`🚀 modl-admin server running on port ${PORT}`);
       console.log(`📧 Email service configured for ${process.env.SMTP_HOST || 'localhost'}`);
       console.log(`🌍 Environment: ${NODE_ENV}`);
+      console.log(`🔌 Socket.IO enabled for real-time log streaming`);
+      
+      // Start PM2 log streaming
+      PM2LogService.startStreaming();
+      console.log(`📊 PM2 log streaming started for modl-panel instance`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);
@@ -158,12 +200,16 @@ async function startServer() {
 // Handle shutdown gracefully
 process.on('SIGTERM', async () => {
   console.log('🛑 SIGTERM received, shutting down gracefully');
+  PM2LogService.stopStreaming();
+  io.close();
   await mongoose.connection.close();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
   console.log('🛑 SIGINT received, shutting down gracefully');
+  PM2LogService.stopStreaming();
+  io.close();
   await mongoose.connection.close();
   process.exit(0);
 });

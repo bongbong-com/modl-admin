@@ -26,6 +26,9 @@ jobs:
           cd /home/modl/modl-admin
           git pull origin main
           npm install
+          cd client
+          npm install
+          cd ..
           npm run build
           pm2 reload modl-admin
         EOF

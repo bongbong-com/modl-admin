@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from 'm
 import { Checkbox } from 'modl-shared-web/components/ui/checkbox';
 import { apiClient } from '@/lib/api';
 import { formatDate, formatDateRelative } from '@/lib/utils';
+import { useSocket } from '@/hooks/use-socket';
 import { 
   Search,
   Filter,
@@ -24,7 +25,10 @@ import {
   ArrowUp,
   ArrowDown,
   RefreshCw,
-  FileText
+  FileText,
+  Wifi,
+  WifiOff,
+  Zap
 } from 'lucide-react';
 
 interface SystemLog {
@@ -58,6 +62,7 @@ export default function SystemLogs() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [sortBy, setSortBy] = useState<'timestamp' | 'level'>('timestamp');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [realTimeEnabled, setRealTimeEnabled] = useState(true);
   
   const [filters, setFilters] = useState<LogFilters>({
     level: 'all',
@@ -68,6 +73,31 @@ export default function SystemLogs() {
     startDate: '',
     endDate: ''
   });
+
+  // Socket.IO for real-time updates
+  const { isConnected, newLogs, clearNewLogs, startLogStream, stopLogStream } = useSocket();
+
+  // Start/stop real-time streaming based on user preference
+  useEffect(() => {
+    if (realTimeEnabled && isConnected) {
+      startLogStream();
+    } else {
+      stopLogStream();
+    }
+  }, [realTimeEnabled, isConnected]);
+
+  // Auto-refresh logs when new real-time logs arrive
+  useEffect(() => {
+    if (newLogs.length > 0 && realTimeEnabled) {
+      // Invalidate queries to refresh the log list
+      queryClient.invalidateQueries({ queryKey: ['system-logs'] });
+      // Clear the new logs buffer after a short delay
+      const timer = setTimeout(() => {
+        clearNewLogs();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [newLogs, realTimeEnabled, queryClient, clearNewLogs]);
 
   // Fetch logs with real-time updates
   const { data: logsData, isLoading, error, refetch } = useQuery({
@@ -93,12 +123,28 @@ export default function SystemLogs() {
   });
 
   // Get available log sources
-  const { data: sources } = useQuery({
+  const { data: sourcesData } = useQuery({
     queryKey: ['log-sources'],
     queryFn: async () => {
       const response = await apiClient.getLogSources();
       return response.data;
     },
+  });
+
+  const sources = sourcesData?.sources || [];
+  const categories = sourcesData?.categories || [];
+
+  // Get PM2 status
+  const { data: pm2Status } = useQuery({
+    queryKey: ['pm2-status'],
+    queryFn: async () => {
+      const response = await fetch('/api/monitoring/pm2-status', {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      return data;
+    },
+    refetchInterval: 30000, // Check every 30 seconds
   });
 
   // Resolve logs mutation
@@ -181,11 +227,38 @@ export default function SystemLogs() {
             <Button 
               variant="outline" 
               size="sm" 
+              onClick={() => setRealTimeEnabled(!realTimeEnabled)}
+              className={realTimeEnabled && isConnected ? 'text-green-600 border-green-600' : ''}
+            >
+              {isConnected ? (
+                <Wifi className={`h-4 w-4 mr-2 ${realTimeEnabled ? 'text-green-600' : ''}`} />
+              ) : (
+                <WifiOff className="h-4 w-4 mr-2 text-red-500" />
+              )}
+              {realTimeEnabled ? 'Real-time' : 'Static'}
+            </Button>
+            {newLogs.length > 0 && (
+              <Badge variant="default" className="bg-blue-600">
+                <Zap className="h-3 w-3 mr-1" />
+                {newLogs.length} new
+              </Badge>
+            )}
+            {pm2Status?.data && (
+              <Badge 
+                variant={pm2Status.data.isStreaming ? "default" : "destructive"}
+                className={pm2Status.data.isStreaming ? "bg-green-600" : "bg-red-600"}
+              >
+                PM2 {pm2Status.data.isStreaming ? 'Active' : 'Inactive'}
+              </Badge>
+            )}
+            <Button 
+              variant="outline" 
+              size="sm" 
               onClick={() => setAutoRefresh(!autoRefresh)}
-              className={autoRefresh ? 'text-green-600' : ''}
+              className={autoRefresh ? 'text-blue-600' : ''}
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${autoRefresh ? 'animate-spin' : ''}`} />
-              {autoRefresh ? 'Live' : 'Paused'}
+              {autoRefresh ? 'Auto-refresh' : 'Manual'}
             </Button>
             <Button 
               variant="outline" 
