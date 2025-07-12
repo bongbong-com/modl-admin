@@ -438,9 +438,21 @@ router.post('/:id/reset-database', async (req: Request, res: Response) => {
     // Only drop the database if it exists and is configured
     if (server.databaseName) {
       try {
-        const serverDb = mongoose.connection.useDb(server.databaseName, { useCache: true });
-        await serverDb.dropDatabase();
-        console.log(`Database ${server.databaseName} dropped for server ${server.serverName}`);
+        // Check if main connection is ready before attempting database operations
+        if (mongoose.connection.readyState !== 1) {
+          console.warn(`MongoDB connection not ready (state: ${mongoose.connection.readyState}). Skipping database drop for ${server.databaseName}`);
+        } else {
+          const serverDb = mongoose.connection.useDb(server.databaseName, { useCache: true });
+          
+          // Add timeout to prevent hanging
+          const dropPromise = serverDb.dropDatabase();
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Database drop operation timed out after 5 seconds')), 5000)
+          );
+          
+          await Promise.race([dropPromise, timeoutPromise]);
+          console.log(`Database ${server.databaseName} dropped for server ${server.serverName}`);
+        }
       } catch (dbError) {
         console.warn(`Warning: Could not drop database ${server.databaseName}:`, dbError);
         // Continue with the reset even if database drop fails
